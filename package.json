@@ -20,7 +20,7 @@
     "app",
     "cross-platform"
   ],
-  "author": "Tanvir Ahmed <tanvir@example.com> (https://github.com/nettanvirdev)",
+  "author": "Tanvir Ahmed <contact@nettanvir.dev> (https://github.com/nettanvirdev)",
   "license": "CC0-1.0",
   "devDependencies": {
     "electron": "^26.0.0",

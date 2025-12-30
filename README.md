@@ -46,13 +46,13 @@ git clone https://github.com/nettanvirdev/electron-starter.git
 cd electron-starter
 ```
 
-2. Install dependencies:
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-3. Start the development server:
+1. Start the development server:
 
 ```bash
 npm start
@@ -120,16 +120,6 @@ Edit `renderer.js` to add your application logic and UI interactions.
 - **GitHub:** [@nettanvirdev](https://github.com/nettanvirdev)
 - **LinkedIn:** [nettanvirdev](https://www.linkedin.com/in/nettanvirdev)
 - **Instagram:** [@nettanvirdev](https://www.instagram.com/nettanvirdev)
-- **Website:** [levelpixel.net](https://repo.levelpixel.net/)
-
-## 📝 License
-
-This project is licensed under the CC0-1.0 License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-Originally based on the [Electron Quick Start](https://github.com/electron/electron-quick-start) template, heavily modified for improved structure and best practices.
-
----
+- **Website:** [levelpixel.net](https://nettanvir.dev/)
 
 **Happy coding!** ⚡ Building scalable applications, one commit at a time.
