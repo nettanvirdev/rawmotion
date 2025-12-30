@@ -120,6 +120,6 @@ Edit `renderer.js` to add your application logic and UI interactions.
 - **GitHub:** [@nettanvirdev](https://github.com/nettanvirdev)
 - **LinkedIn:** [nettanvirdev](https://www.linkedin.com/in/nettanvirdev)
 - **Instagram:** [@nettanvirdev](https://www.instagram.com/nettanvirdev)
-- **Website:** [levelpixel.net](https://nettanvir.dev/)
+- **Website:** [nettanvir.dev](https://nettanvir.dev/)
 
 **Happy coding!** ⚡ Building scalable applications, one commit at a time.
