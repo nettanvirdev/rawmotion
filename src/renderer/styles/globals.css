@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #212121;
+    --foreground: #f5f5f5;
+
+    --card: #181818;
+    --card-foreground: #f5f5f5;
+
+    --popover: #181818;
+    --popover-foreground: #f5f5f5;
+
+    --primary: #ffffff;
+    --primary-foreground: #0a0a0a;
+
+    --secondary: #2a2a2a;
+    --secondary-foreground: #f5f5f5;
+
+    --muted: #2a2a2a;
+    --muted-foreground: #a0a0a0;
+
+    --accent: #2a2a2a;
+    --accent-foreground: #f5f5f5;
+
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+
+    --border: transparent;
+    --input: #2a2a2a;
+    --ring: #ffffff;
+
+    --radius: 0.5rem;
+
+    /* Chart colors */
+    --chart-1: #8b5cf6;
+    --chart-2: #06b6d4;
+    --chart-3: #10b981;
+    --chart-4: #f59e0b;
+    --chart-5: #ef4444;
+
+    /* Sidebar colors */
+    --sidebar: #181818;
+    --sidebar-foreground: #f5f5f5;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #0a0a0a;
+    --sidebar-accent: #2a2a2a;
+    --sidebar-accent-foreground: #f5f5f5;
+    --sidebar-border: transparent;
+    --sidebar-ring: #ffffff;
+
+    /* Custom colors for your app */
+    --titlebar: #181818;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    @apply h-full bg-transparent text-foreground antialiased overflow-hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      sans-serif;
+  }
+
+  #root {
+    @apply h-full;
+  }
+}
+
+/* Titlebar dragging */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground;
+  opacity: 0.7;
+}

@@ -1,42 +1,64 @@
 {
   "name": "electron-starter",
   "version": "1.0.0",
-  "description": "A modern, production-ready Electron starter template",
-  "main": "main.js",
+  "description": "A modern, production-ready Electron starter template with React + Vite + shadcn/ui",
+  "main": "src/main/main.cjs",
+  "type": "module",
   "scripts": {
+    "dev": "cross-env NODE_OPTIONS=--no-warnings concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "cross-env NODE_ENV=development NODE_OPTIONS=--no-warnings electron .",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "electron .",
-    "watch": "nodemon --exec electron .",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder",
-    "pack-local": "electron-packager . \"electron-starter\" --platform=win32 --arch=x64 --out=dist --overwrite",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
     "reset": "git reset --hard"
   },
   "repository": "https://github.com/nettanvirdev/electron-starter",
   "keywords": [
     "electron",
+    "react",
+    "vite",
+    "tailwindcss",
+    "shadcn",
     "starter",
     "template",
     "desktop",
-    "app",
-    "cross-platform"
+    "app"
   ],
   "author": "Tanvir Ahmed <contact@nettanvir.dev> (https://github.com/nettanvirdev)",
   "license": "CC0-1.0",
   "devDependencies": {
-    "electron": "^26.0.0",
-    "electron-builder": "^24.0.0",
-    "nodemon": "^2.0.22",
-    "electron-packager": "^17.1.0"
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.23",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^26.6.10",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "vite": "^5.4.21"
   },
   "dependencies": {
-    "form-data": "^4.0.5"
+    "@radix-ui/react-slot": "^1.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.303.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0"
   },
   "build": {
     "appId": "com.example.master-electron",
     "productName": "Master Electron",
     "files": [
-      "**/*"
+      "dist/**/*",
+      "src/main/**/*"
     ],
+    "directories": {
+      "output": "release"
+    },
     "win": {
       "target": [
         "nsis"
