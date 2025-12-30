@@ -1,0 +1,46 @@
+{
+  "name": "electron-starter",
+  "version": "1.0.0",
+  "description": "A modern, production-ready Electron starter template",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "watch": "nodemon --exec electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "pack-local": "electron-packager . \"electron-starter\" --platform=win32 --arch=x64 --out=dist --overwrite",
+    "reset": "git reset --hard"
+  },
+  "repository": "https://github.com/nettanvirdev/electron-starter",
+  "keywords": [
+    "electron",
+    "starter",
+    "template",
+    "desktop",
+    "app",
+    "cross-platform"
+  ],
+  "author": "Tanvir Ahmed <tanvir@example.com> (https://github.com/nettanvirdev)",
+  "license": "CC0-1.0",
+  "devDependencies": {
+    "electron": "^26.0.0",
+    "electron-builder": "^24.0.0",
+    "nodemon": "^2.0.22",
+    "electron-packager": "^17.1.0"
+  },
+  "dependencies": {
+    "form-data": "^4.0.5"
+  },
+  "build": {
+    "appId": "com.example.master-electron",
+    "productName": "Master Electron",
+    "files": [
+      "**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}
