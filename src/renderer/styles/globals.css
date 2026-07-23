@@ -1,59 +1,108 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer base {
-  :root {
-    --background: #212121;
-    --foreground: #f5f5f5;
+/* Tailwind v4 dark variant (opt-in via a `.dark` class on any ancestor). */
+@custom-variant dark (&:where(.dark, .dark *));
 
-    --card: #181818;
-    --card-foreground: #f5f5f5;
+/*
+ * Design tokens. This template ships a dark theme by default (matching the
+ * frameless window chrome). Override any of these vars on `:root` for a light
+ * theme, or scope a `.dark` block if you add a runtime theme toggle.
+ */
+:root {
+  --radius: 0.5rem;
 
-    --popover: #181818;
-    --popover-foreground: #f5f5f5;
+  --background: #212121;
+  --foreground: #f5f5f5;
 
-    --primary: #ffffff;
-    --primary-foreground: #0a0a0a;
+  --card: #181818;
+  --card-foreground: #f5f5f5;
 
-    --secondary: #2a2a2a;
-    --secondary-foreground: #f5f5f5;
+  --popover: #181818;
+  --popover-foreground: #f5f5f5;
 
-    --muted: #2a2a2a;
-    --muted-foreground: #a0a0a0;
+  --primary: #ffffff;
+  --primary-foreground: #0a0a0a;
 
-    --accent: #2a2a2a;
-    --accent-foreground: #f5f5f5;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #f5f5f5;
 
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
+  --muted: #2a2a2a;
+  --muted-foreground: #a0a0a0;
 
-    --border: transparent;
-    --input: #2a2a2a;
-    --ring: #ffffff;
+  --accent: #2a2a2a;
+  --accent-foreground: #f5f5f5;
 
-    --radius: 0.5rem;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
-    /* Chart colors */
-    --chart-1: #8b5cf6;
-    --chart-2: #06b6d4;
-    --chart-3: #10b981;
-    --chart-4: #f59e0b;
-    --chart-5: #ef4444;
+  --border: #2f2f2f;
+  --input: #2a2a2a;
+  --ring: #ffffff;
 
-    /* Sidebar colors */
-    --sidebar: #181818;
-    --sidebar-foreground: #f5f5f5;
-    --sidebar-primary: #ffffff;
-    --sidebar-primary-foreground: #0a0a0a;
-    --sidebar-accent: #2a2a2a;
-    --sidebar-accent-foreground: #f5f5f5;
-    --sidebar-border: transparent;
-    --sidebar-ring: #ffffff;
+  /* Chart colors */
+  --chart-1: #8b5cf6;
+  --chart-2: #06b6d4;
+  --chart-3: #10b981;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
 
-    /* Custom colors for your app */
-    --titlebar: #181818;
-  }
+  /* Sidebar colors */
+  --sidebar: #181818;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #2a2a2a;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: transparent;
+  --sidebar-ring: #ffffff;
+
+  /* App-specific custom colors */
+  --titlebar: #181818;
+}
+
+/* Map the design tokens to Tailwind's theme so utilities like `bg-background`,
+ * `text-muted-foreground`, `border-border`, `rounded-lg` resolve correctly. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-titlebar: var(--titlebar);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
 @layer base {
@@ -73,7 +122,7 @@
   }
 }
 
-/* Titlebar dragging */
+/* Titlebar dragging (Electron frameless window) */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
@@ -89,14 +138,15 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted rounded-full;
+  background: var(--muted);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground;
+  background: var(--muted-foreground);
   opacity: 0.7;
 }

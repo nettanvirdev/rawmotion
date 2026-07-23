@@ -1,18 +1,25 @@
 {
   "name": "electron-starter",
-  "version": "1.0.0",
-  "description": "A modern, production-ready Electron starter template with React + Vite + shadcn/ui",
+  "version": "2.0.0",
+  "description": "A modern, production-ready Electron starter template with React 19 + Vite 8 + Tailwind 4 + shadcn/ui",
   "main": "src/main/main.cjs",
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=--no-warnings concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev": "cross-env NODE_OPTIONS=--no-warnings concurrently -k -n vite,electron -c cyan,magenta \"npm:dev:vite\" \"npm:dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "cross-env NODE_ENV=development NODE_OPTIONS=--no-warnings electron .",
     "build": "vite build",
     "preview": "vite preview",
     "start": "electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "icons": "node scripts/generate-icons.mjs",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
+    "release": "npm run icons && npm run build && electron-builder --win nsis portable",
+    "release:installer": "npm run icons && npm run build && electron-builder --win nsis",
+    "release:portable": "npm run icons && npm run build && electron-builder --win portable",
+    "release:ci": "npm run icons && npm run build && electron-builder --win nsis portable --publish always",
+    "dist": "npm run release",
     "reset": "git reset --hard"
   },
   "repository": "https://github.com/nettanvirdev/electron-starter",
@@ -30,39 +37,90 @@
   "author": "Tanvir Ahmed <contact@nettanvir.dev> (https://github.com/nettanvirdev)",
   "license": "CC0-1.0",
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.7.0",
-    "autoprefixer": "^10.4.23",
-    "concurrently": "^8.2.2",
-    "cross-env": "^7.0.3",
-    "electron": "^26.6.10",
-    "electron-builder": "^24.13.3",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.19",
-    "vite": "^5.4.21"
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.3",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-slot": "^1.3.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.303.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tailwind-merge": "^2.6.0"
+    "lucide-react": "^1.26.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0"
   },
   "build": {
-    "appId": "com.example.master-electron",
-    "productName": "Master Electron",
+    "appId": "com.nettanvir.electronstarter",
+    "productName": "Electron Starter",
+    "copyright": "Copyright © 2026 Tanvir Ahmed",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "nettanvirdev",
+        "repo": "electron-starter",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "dist/**/*",
-      "src/main/**/*"
+      "src/main/**/*",
+      "package.json"
     ],
-    "directories": {
-      "output": "release"
-    },
+    "asar": true,
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "menuCategory": false,
+      "shortcutName": "Electron Starter",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "license": "build/license.txt",
+      "include": "build/installer.nsh",
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "uninstallDisplayName": "Electron Starter ${version}"
     }
   }
 }

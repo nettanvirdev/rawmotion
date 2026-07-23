@@ -1,9 +1,20 @@
 // Electron Main Process
-const { app, BrowserWindow, Menu, ipcMain, screen } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  ipcMain,
+  screen,
+  shell,
+} = require("electron");
 const path = require("path");
 
 // Environment check
 const isDev = process.env.NODE_ENV === "development";
+
+// Default (restored) window size, reused by the drag-out-of-maximize logic.
+const DEFAULT_WIDTH = 1000;
+const DEFAULT_HEIGHT = 700;
 
 // Keep a global reference of the window object
 let mainWindow = null;
@@ -15,29 +26,52 @@ function sendWindowState(state) {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, "../../public/assets/logo.png");
+  // In dev we point the window icon at the source PNG; in production the icon
+  // is embedded into the .exe by electron-builder, so we leave it undefined.
+  const devIcon = path.join(__dirname, "../../public/assets/logo.png");
 
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 700,
+    width: DEFAULT_WIDTH,
+    height: DEFAULT_HEIGHT,
+    minWidth: 640,
+    minHeight: 480,
     frame: false,
+    show: false,
     transparent: true,
     backgroundColor: "#00000000",
-    icon: iconPath,
+    icon: isDev ? devIcon : undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
+
+  // Avoid a white/transparent flash: only show once the renderer has painted.
+  mainWindow.once("ready-to-show", () => mainWindow.show());
 
   // Load the app - Vite dev server in development, built files in production
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
+
+  // Security: open external links in the user's browser, never in-app, and
+  // block any attempt to navigate the window away from the app.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const isDevServer = isDev && url.startsWith("http://localhost:5173");
+    if (!isDevServer && !url.startsWith("file://")) {
+      event.preventDefault();
+      if (/^https?:\/\//.test(url)) shell.openExternal(url);
+    }
+  });
 
   mainWindow.on("maximize", () => sendWindowState("maximized"));
   mainWindow.on("unmaximize", () => sendWindowState("normal"));
@@ -75,10 +109,8 @@ ipcMain.on("window-begin-drag", () => {
   if (!mainWindow) return;
   if (mainWindow.isMaximized() || mainWindow.isFullScreen()) {
     const { workArea } = screen.getPrimaryDisplay();
-    const newWidth = 1000;
-    const newHeight = 700;
-    const newX = workArea.x + Math.floor((workArea.width - newWidth) / 2);
-    const newY = workArea.y + Math.floor((workArea.height - newHeight) / 2);
+    const newX = workArea.x + Math.floor((workArea.width - DEFAULT_WIDTH) / 2);
+    const newY = workArea.y + Math.floor((workArea.height - DEFAULT_HEIGHT) / 2);
 
     if (mainWindow.isFullScreen()) {
       mainWindow.setFullScreen(false);
@@ -89,20 +121,56 @@ ipcMain.on("window-begin-drag", () => {
     mainWindow.setBounds({
       x: newX,
       y: newY,
-      width: newWidth,
-      height: newHeight,
+      width: DEFAULT_WIDTH,
+      height: DEFAULT_HEIGHT,
     });
     sendWindowState("normal");
   }
 });
 
-// App lifecycle
-app.whenReady().then(createWindow);
+// App / runtime info for the renderer (used by the About panel).
+ipcMain.handle("app:get-info", () => ({
+  name: app.getName(),
+  appVersion: app.getVersion(),
+  platform: process.platform,
+  arch: process.arch,
+  isDev,
+  versions: {
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    v8: process.versions.v8,
+  },
+}));
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+// Safe, whitelisted external-link opener exposed through the preload bridge.
+ipcMain.handle("app:open-external", (_event, url) => {
+  if (typeof url === "string" && /^https?:\/\//.test(url)) {
+    return shell.openExternal(url);
+  }
+  return false;
 });
 
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
+// Enforce a single running instance; focus the existing window instead.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  // App lifecycle
+  app.whenReady().then(createWindow);
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+  });
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+}

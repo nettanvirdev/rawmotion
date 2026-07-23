@@ -25,9 +25,10 @@ export function Titlebar({
   };
 
   useEffect(() => {
-    window.electronAPI?.onWindowState?.((state) =>
+    const unsubscribe = window.electronAPI?.onWindowState?.((state) =>
       onWindowStateChange?.(state)
     );
+    return () => unsubscribe?.();
   }, [onWindowStateChange]);
 
   // Disable native drag when maximized or fullscreen - only allow drag in normal state
