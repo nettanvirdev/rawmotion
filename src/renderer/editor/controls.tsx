@@ -155,8 +155,9 @@ export const NumberField: React.FC<NumberFieldProps> = ({
       onCommit?.();
     } else {
       // A plain click: hand focus to the input so the value can be typed.
+      // No select-all - the caret lands where the click put it, like any
+      // normal input. Select-all made the first keystroke wipe the value.
       event.currentTarget.focus();
-      event.currentTarget.select();
     }
   };
 
@@ -172,9 +173,13 @@ export const NumberField: React.FC<NumberFieldProps> = ({
         onPointerMove={onPointerMove}
         onPointerUp={endGesture}
         onPointerCancel={endGesture}
-        onFocus={() => setDraft(display)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
+          // A draft exists only once the user has actually typed. Blurring
+          // an untouched field must be a no-op: seeding the draft on focus
+          // meant a stale snapshot got committed on blur, silently reverting
+          // any change made elsewhere (a slider drag, an agent edit) while
+          // the field held focus.
           if (draft !== null) {
             const parsed = Number(draft);
             if (Number.isFinite(parsed)) onChange(clampTo(parsed));

@@ -458,37 +458,46 @@ const LayerInspector: React.FC<{ project: Project; layer: Layer; scene: Scene }>
       </Section>
 
       <Section title="Transform">
-        <Pair label="Position">
-          <NumberField
+        <Row label="X">
+          <SliderField
             value={layer.transform.x}
+            min={-project.composition.width}
+            max={project.composition.width}
             step={1}
             precision={0}
             onChange={(v) => setTransform({ x: v }, "x")}
           />
-          <NumberField
+        </Row>
+        <Row label="Y">
+          <SliderField
             value={layer.transform.y}
+            min={-project.composition.height}
+            max={project.composition.height}
             step={1}
             precision={0}
             onChange={(v) => setTransform({ y: v }, "y")}
           />
-        </Pair>
-        <Pair label="Scale / spin">
-          <NumberField
+        </Row>
+        <Row label="Scale">
+          <SliderField
             value={layer.transform.scale}
             min={0.01}
-            max={20}
+            max={10}
             step={0.01}
             precision={2}
             onChange={(v) => setTransform({ scale: v }, "scale")}
           />
-          <NumberField
+        </Row>
+        <Row label="Rotate">
+          <SliderField
             value={layer.transform.rotate}
+            min={-360}
+            max={360}
             step={1}
             precision={1}
-            suffix="°"
             onChange={(v) => setTransform({ rotate: v }, "rotate")}
           />
-        </Pair>
+        </Row>
         <Row label="Opacity">
           <SliderField
             value={layer.transform.opacity}
@@ -807,14 +816,27 @@ const LayerPropsSection: React.FC<{
                     onChange={(v) => setInner(key, v)}
                   />
                 ) : spec.kind === "number" ? (
-                  <NumberField
-                    value={Number(inner[key] ?? spec.default)}
-                    min={spec.min}
-                    max={spec.max}
-                    step={spec.step ?? 1}
-                    precision={2}
-                    onChange={(v) => setInner(key, v)}
-                  />
+                  // A bounded number gets a slider beside its input - finding
+                  // a value by feel beats typing candidates one at a time.
+                  spec.min != null && spec.max != null ? (
+                    <SliderField
+                      value={Number(inner[key] ?? spec.default)}
+                      min={spec.min}
+                      max={spec.max}
+                      step={spec.step ?? 1}
+                      precision={2}
+                      onChange={(v) => setInner(key, v)}
+                    />
+                  ) : (
+                    <NumberField
+                      value={Number(inner[key] ?? spec.default)}
+                      min={spec.min}
+                      max={spec.max}
+                      step={spec.step ?? 1}
+                      precision={2}
+                      onChange={(v) => setInner(key, v)}
+                    />
+                  )
                 ) : spec.kind === "color" ? (
                   <ColorField
                     value={String(inner[key] ?? spec.default)}
