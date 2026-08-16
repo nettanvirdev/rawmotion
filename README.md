@@ -91,6 +91,24 @@ fixed in the engine rather than worked around in the project.
 
 ## Getting started
 
+**→ [docs/getting-started.md](docs/getting-started.md)** walks through
+installing the app, wiring Claude to it, and making the first video.
+
+### Download
+
+Windows x64 builds are on the
+[Releases page](https://github.com/nettanvirdev/rawmotion/releases):
+
+- `Raw Motion-<version>-portable.exe` — no install, double-click
+- `Raw Motion-Setup-<version>.exe` — installer
+
+They are unsigned, so SmartScreen will warn; *More info* → *Run anyway*.
+
+The app is a window onto a project. To have Claude **make** videos you also
+want the repo, because the MCP server runs on Node outside the packaged app.
+
+### From source
+
 ```bash
 npm install
 npm run dev
