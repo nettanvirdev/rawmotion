@@ -34,6 +34,7 @@ export interface EditorState {
 
   zoom: Zoom;
   pan: { x: number; y: number };
+  /** Overlay the composition grid the engine actually lays out on. */
   showSafeAreas: boolean;
 
   leftPanel: LeftPanel;

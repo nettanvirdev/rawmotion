@@ -33,6 +33,7 @@ import type { Project } from "@shared/project.js";
 import { formatTimecode, projectDurationInFrames } from "@shared/project.js";
 import { RawMotionComposition } from "@motion/RawMotionComposition";
 import { mapAssetResolver } from "@motion/assets";
+import { DEFAULT_GRID, safeArea } from "@motion/layout";
 import { useEditorStore } from "@/state/editorStore";
 import { IconButton } from "./controls";
 import { cn } from "@/lib/utils";
@@ -231,7 +232,7 @@ export const Canvas: React.FC<{
             acknowledgeRemotionLicense
           />
 
-          {showSafeAreas ? <SafeAreas /> : null}
+          {showSafeAreas ? <LayoutGuides /> : null}
         </div>
 
         <ZoomBadge scale={scale} isFit={zoom === "fit"} />
@@ -256,19 +257,72 @@ export const Canvas: React.FC<{
 };
 
 /**
- * Title and action safe areas - 90% and 80% of frame.
+ * Layout guides.
  *
- * The broadcast convention, still the right guide for social platforms
- * whose chrome overlays the edges of a vertical video.
+ * Draws the *actual* grid the engine positions layers on - the same
+ * `DEFAULT_GRID` and `safeArea` the renderer uses - rather than a generic
+ * broadcast safe-area overlay. That is the point: a guide that approximates
+ * the real grid is worse than none, because a user aligning to it would be
+ * aligning to a line the composition does not have.
+ *
+ * Column lines are drawn brighter than row lines because horizontal
+ * alignment is what people actually check.
  */
-const SafeAreas: React.FC = () => (
-  <div className="pointer-events-none absolute inset-0">
-    <div className="absolute inset-[5%] border border-dashed border-white/20" />
-    <div className="absolute inset-[10%] border border-dashed border-white/12" />
-    <div className="absolute left-1/2 top-0 h-full w-px bg-white/8" />
-    <div className="absolute left-0 top-1/2 h-px w-full bg-white/8" />
-  </div>
-);
+const LayoutGuides: React.FC = () => {
+  const grid = DEFAULT_GRID;
+
+  // Percentages, so the overlay scales with the canvas at any zoom.
+  const area = safeArea(100, 100, grid);
+  const gutterX = (grid.gutter / 1920) * 100;
+  const gutterY = (grid.gutter / 1080) * 100;
+  const colWidth = (area.width - gutterX * (grid.columns - 1)) / grid.columns;
+  const rowHeight = (area.height - gutterY * (grid.rows - 1)) / grid.rows;
+
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {/* Safe area */}
+      <div
+        className="absolute border border-dashed border-[var(--rm-accent)]/30"
+        style={{
+          left: `${area.left}%`,
+          top: `${area.top}%`,
+          width: `${area.width}%`,
+          height: `${area.height}%`,
+        }}
+      />
+
+      {Array.from({ length: grid.columns }, (_, i) => (
+        <div
+          key={`c${i}`}
+          className="absolute bg-[var(--rm-accent)]/12"
+          style={{
+            left: `${area.left + i * (colWidth + gutterX)}%`,
+            top: `${area.top}%`,
+            width: `${colWidth}%`,
+            height: `${area.height}%`,
+          }}
+        />
+      ))}
+
+      {Array.from({ length: grid.rows - 1 }, (_, i) => (
+        <div
+          key={`r${i}`}
+          className="absolute bg-white/8"
+          style={{
+            left: `${area.left}%`,
+            top: `${area.top + (i + 1) * rowHeight + i * gutterY}%`,
+            width: `${area.width}%`,
+            height: "1px",
+          }}
+        />
+      ))}
+
+      {/* Centre lines - the reference for anything meant to be centred. */}
+      <div className="absolute left-1/2 top-0 h-full w-px bg-white/10" />
+      <div className="absolute left-0 top-1/2 h-px w-full bg-white/10" />
+    </div>
+  );
+};
 
 const ZoomBadge: React.FC<{ scale: number; isFit: boolean }> = ({ scale, isFit }) => (
   <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/45 px-2.5 py-1 text-[10px] text-white/55 backdrop-blur-sm rm-num">
@@ -345,7 +399,7 @@ const Transport: React.FC<{
       frame {playhead}
     </span>
 
-    <IconButton title="Safe areas" onClick={onToggleSafeAreas} active={safeAreas}>
+    <IconButton title="Layout grid" onClick={onToggleSafeAreas} active={safeAreas}>
       <Frame className="size-3.5" />
     </IconButton>
     <IconButton title="Zoom out" onClick={onZoomOut}>

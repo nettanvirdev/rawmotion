@@ -178,7 +178,7 @@ export const EditorShell: React.FC<{
 
       { id: "fit", group: "View", label: "Fit to window", keys: "mod+0", run: editor.resetView },
       { id: "actual", group: "View", label: "Actual pixels", keys: "mod+1", run: () => editor.setZoom(1) },
-      { id: "safe", group: "View", label: "Toggle safe areas", run: editor.toggleSafeAreas },
+      { id: "safe", group: "View", label: "Toggle layout grid", run: editor.toggleSafeAreas },
       { id: "left", group: "View", label: "Toggle left panel", keys: "mod+b", run: editor.toggleLeft },
       { id: "inspector", group: "View", label: "Toggle inspector", keys: "mod+alt+b", run: editor.toggleInspector },
 
