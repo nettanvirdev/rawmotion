@@ -60,7 +60,27 @@ project directory per call. Every path it is handed goes through
 | --- | --- |
 | `render_frame` | One frame, returned **as an image**. |
 | `render_contact_sheet` | The midpoint of every scene, as images. |
-| `render_video` | Resolves when the file is written. |
+| `render_video` | Starts a job, returns a `jobId` immediately. |
+| `render_status` | Poll a job; reports progress, then the output path and size. |
+
+## Why rendering is a job
+
+`render_video` returns a `jobId` rather than the finished file.
+
+A full-length 1080p render takes minutes, and MCP clients apply a request
+timeout — the reference SDK defaults to 60 seconds. A synchronous render tool
+therefore reports a timeout *error* to the agent while the render happily
+continues and writes the file. The agent then either retries, doubling the
+load, or abandons a video that exists. This was found by hitting it, not by
+reasoning about it.
+
+So: start, then poll `render_status`. Roughly 1–3 frames per second at 1080p,
+so a 30-second film is several minutes. Use `scale: 0.5` for a draft.
+
+Renders run detached from the call that started them, which means a failure
+arrives as an unhandled rejection rather than as a thrown error someone is
+awaiting. The server traps those and records the failure on the job — losing
+a render must not end the agent's session.
 
 ## Why the render tools return images
 

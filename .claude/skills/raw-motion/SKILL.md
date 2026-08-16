@@ -152,11 +152,13 @@ in landscape wraps badly at 1080 wide.
 
 ## Rendering
 
-- `render_video` with `scale: 0.5` for a draft the user can watch quickly.
-- Full quality: default scale, `crf: 18` for a final master.
-- Rendering is roughly real-time per 1080p frame with heavy backgrounds, so a
-  20-second film takes a few minutes. Tell the user before starting rather
-  than going quiet.
+- `render_video` returns a **`jobId` immediately** - it does not wait. Poll
+  `render_status` with that id until it reports `done`.
+- `scale: 0.5` for a draft the user can watch quickly; default scale and
+  `crf: 18` for a final master.
+- Roughly 1-3 frames per second at 1080p, so a 30-second film is several
+  minutes. Say so before starting rather than going quiet, and space the
+  polls out - checking every few seconds just burns turns.
 
 ## Reference
 

@@ -221,6 +221,56 @@ describe("errors", () => {
   });
 });
 
+describe("rendering", () => {
+  it("render_video returns a job id instead of blocking", async () => {
+    // A full render takes minutes. MCP clients time requests out - the
+    // reference SDK at 60s - so a synchronous render tool reports failure to
+    // the agent while the render continues and writes the file. The agent
+    // then retries, doubling the load, or abandons a video that exists.
+    const created = await call("create_project", { name: "Renders", width: 320, height: 180 });
+
+    const started = Date.now();
+    const job = await call("render_video", { dirName: created.dirName, scale: 0.5 });
+    const elapsed = Date.now() - started;
+
+    expect(job.jobId).toMatch(/^job_/);
+    expect(job.status).toBe("rendering");
+    // The point of the change: it returns promptly rather than after a render.
+    expect(elapsed).toBeLessThan(10_000);
+
+    const status = await call("render_status", { jobId: job.jobId });
+    expect(status.jobId).toBe(job.jobId);
+    expect(["rendering", "done", "failed"]).toContain(status.status);
+  }, 30_000);
+
+  it("survives a render that fails, and records the failure on the job", async () => {
+    // Renders run detached from the call that started them, so a failure
+    // arrives as an unhandled rejection. If that killed the process the
+    // agent would lose its whole session over one bad render.
+    const created = await call("create_project", { name: "Doomed", width: 320, height: 180 });
+    const job = await call("render_video", { dirName: created.dirName, scale: 0.5 });
+
+    // Whatever the outcome, the server must still be answering.
+    const projects = await call("list_projects");
+    expect(projects.projects.length).toBeGreaterThan(0);
+
+    const status = await call("render_status", { jobId: job.jobId });
+    expect(["rendering", "done", "failed"]).toContain(status.status);
+  }, 30_000);
+
+  it("render_status lists jobs and names the valid ids on a bad one", async () => {
+    const all = await call("render_status");
+    expect(Array.isArray(all)).toBe(true);
+
+    const result = await client.callTool({
+      name: "render_status",
+      arguments: { jobId: "job_nope" },
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Jobs this session");
+  });
+});
+
 describe("the live loop", () => {
   it("an MCP edit is seen by a watcher in another process", async () => {
     // This is the product's central claim: an agent edits the project and

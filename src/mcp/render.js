@@ -170,9 +170,9 @@ export async function renderContactSheet({ project, outputDir, scale = 0.3 }) {
 /**
  * Render the project to a video file.
  *
- * Synchronous from the caller's point of view - it resolves when the file is
- * written. An agent has no UI to report progress into, and a tool that
- * returns "started" forces it to poll.
+ * Resolves when the file is written. Callers that cannot wait that long -
+ * which is every MCP client, see `startRenderJob` - should use the job
+ * wrapper below instead of calling this directly.
  *
  * @param {object} options
  * @param {object} options.project
@@ -224,4 +224,90 @@ export async function renderVideo({
     bytes: stat.size,
     elapsedSeconds: Number(((Date.now() - started) / 1000).toFixed(1)),
   };
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Render jobs
+ *
+ * A full-length 1080p render takes minutes. MCP clients apply a request
+ * timeout - the reference SDK defaults to 60 seconds - so a synchronous
+ * `render_video` tool reports a timeout error to the agent while the render
+ * happily continues and writes the file. The agent then believes the render
+ * failed, and either retries (doubling the load) or gives up on a video that
+ * actually exists.
+ *
+ * So rendering is a job: start it, poll it. This is the same shape the
+ * desktop app's queue uses, and for the same reason.
+ * ------------------------------------------------------------------ */
+
+/** @type {Map<string, { id: string, status: string, progress: number, renderedFrames: number, totalFrames: number, path: string|null, error: string|null, startedAt: string, finishedAt: string|null, label: string }>} */
+const jobs = new Map();
+
+let jobCounter = 0;
+
+/**
+ * Begin a render and return immediately.
+ *
+ * @param {object} options Same shape as `renderVideo`, plus `label`.
+ * @returns {{ jobId: string }}
+ */
+export function startRenderJob(options) {
+  const id = `job_${++jobCounter}`;
+
+  const job = {
+    id,
+    label: options.label ?? "render",
+    status: "rendering",
+    progress: 0,
+    renderedFrames: 0,
+    totalFrames: 0,
+    path: null,
+    error: null,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+  };
+  jobs.set(id, job);
+
+  // Deliberately not awaited. The whole point is to return before this
+  // finishes; `render_status` is how the caller learns the outcome.
+  void renderVideo({
+    ...options,
+    onProgress: ({ renderedFrames, totalFrames }) => {
+      job.renderedFrames = renderedFrames;
+      job.totalFrames = totalFrames;
+      job.progress = totalFrames ? renderedFrames / totalFrames : 0;
+    },
+  })
+    .then((result) => {
+      Object.assign(job, {
+        status: "done",
+        progress: 1,
+        path: result.path,
+        finishedAt: new Date().toISOString(),
+        result,
+      });
+    })
+    .catch((error) => {
+      Object.assign(job, {
+        status: "failed",
+        error: error instanceof Error ? error.message : String(error),
+        finishedAt: new Date().toISOString(),
+      });
+    });
+
+  return { jobId: id };
+}
+
+/**
+ * @param {string} jobId
+ * @returns {object | null}
+ */
+export function getRenderJob(jobId) {
+  return jobs.get(jobId) ?? null;
+}
+
+/** Every job this session, newest first. */
+export function listRenderJobs() {
+  return [...jobs.values()].reverse();
 }

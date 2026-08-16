@@ -49,7 +49,13 @@ import { resolveInProject, resolveWorkspaceRoot } from "../shared/paths.js";
 import * as store from "../shared/project-fs.js";
 import { TEMPLATES } from "../shared/templates.js";
 import { BACKGROUND_REGISTRY } from "./registry-data.js";
-import { renderContactSheet, renderFrame, renderVideo } from "./render.js";
+import {
+  getRenderJob,
+  listRenderJobs,
+  renderContactSheet,
+  renderFrame,
+  startRenderJob,
+} from "./render.js";
 
 /**
  * The workspace this server operates on.
@@ -756,11 +762,11 @@ server.tool(
 
 server.tool(
   "render_video",
-  "Render the project to a video file. Resolves when the file is written. Renders at full quality by default; pass scale for a fast draft.",
+  "Start rendering the project to a video file. Returns a jobId immediately - rendering takes minutes and would exceed an MCP client's request timeout. Poll render_status with the jobId until it reports done.",
   {
     dirName: z.string(),
     format: z.enum(["mp4", "webm"]).optional(),
-    scale: z.number().optional().describe("1 = full size. 0.5 renders a quick draft."),
+    scale: z.number().optional().describe("1 = full size. 0.5 renders a quick draft in a quarter of the time."),
     crf: z.number().optional().describe("Quality; lower is better. Default 20, 18 is near-lossless."),
     filename: z.string().optional().describe("Output name inside renders/. Defaults to the project name."),
   },
@@ -771,8 +777,59 @@ server.tool(
     const relative = `renders/${safe}.${format}`;
     const outputPath = resolveInProject(dir, relative);
 
-    const result = await renderVideo({ project, outputPath, format, scale, crf });
-    return text({ ...result, projectRelative: relative });
+    const frames = projectDurationInFrames(project);
+    const { jobId } = startRenderJob({
+      project,
+      outputPath,
+      format,
+      scale,
+      crf,
+      label: project.name,
+    });
+
+    return text({
+      jobId,
+      status: "rendering",
+      totalFrames: frames,
+      projectRelative: relative,
+      note: "Poll render_status with this jobId. A 1080p render runs at roughly 1-3 frames per second.",
+    });
+  }),
+);
+
+server.tool(
+  "render_status",
+  "Check a render started by render_video. Reports progress while running, and the output path and file size once done.",
+  { jobId: z.string().optional().describe("Omit to list every render this session.") },
+  tool(async ({ jobId }) => {
+    if (!jobId) {
+      return text(
+        listRenderJobs().map((j) => ({
+          jobId: j.id,
+          label: j.label,
+          status: j.status,
+          progress: Number(j.progress.toFixed(3)),
+        })),
+      );
+    }
+
+    const job = getRenderJob(jobId);
+    if (!job) {
+      const known = listRenderJobs().map((j) => j.id);
+      throw new Error(
+        `No render job "${jobId}". Jobs this session: ${known.length ? known.join(", ") : "(none)"}`,
+      );
+    }
+
+    return text({
+      jobId: job.id,
+      status: job.status,
+      progress: Number(job.progress.toFixed(3)),
+      renderedFrames: job.renderedFrames,
+      totalFrames: job.totalFrames,
+      ...(job.status === "done" ? { output: job.result } : {}),
+      ...(job.error ? { error: job.error } : {}),
+    });
   }),
 );
 
@@ -839,6 +896,25 @@ function resolveSceneIndex(project, ref) {
 /* ------------------------------------------------------------------ *
  * Start
  * ------------------------------------------------------------------ */
+
+/**
+ * A background render must never take the server down.
+ *
+ * Renders run detached from the tool call that started them, so a failure -
+ * a missing browser, a full disk - surfaces as an unhandled rejection rather
+ * than as a thrown error some caller is awaiting. Without these guards the
+ * process exits, the agent's session dies mid-composition, and it loses the
+ * project state it was holding. The job itself already records its own
+ * failure for `render_status` to report.
+ *
+ * stderr only: stdout is the protocol stream.
+ */
+process.on("unhandledRejection", (reason) => {
+  console.error("[rawmotion] unhandled rejection:", reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("[rawmotion] uncaught exception:", error);
+});
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
