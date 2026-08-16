@@ -406,3 +406,275 @@ export const LogoLockup: React.FC<LogoLockupProps> = ({
     </div>
   );
 };
+
+/* ------------------------------------------------------------------ *
+ * GlassCard
+ * ------------------------------------------------------------------ */
+
+export interface GlassCardProps {
+  title?: string;
+  caption?: string;
+  eyebrow?: string;
+  accent?: string;
+  width?: number;
+  height?: number;
+  /** Degrees of continuous 3D sway. 0 holds it still. */
+  sway?: number;
+  /** Corner radius. Large values are the point - see the note below. */
+  radius?: number;
+}
+
+/**
+ * A frosted glass card in the Apple idiom.
+ *
+ * Distinct from `ProductCard`, which is dark glass lit from behind. This is
+ * the light treatment: a translucent white pane over a soft chromatic ground,
+ * with the specific details that make the material read as glass rather than
+ * as a semi-transparent rectangle.
+ *
+ * The four that actually matter:
+ *
+ * 1. **Backdrop blur with saturation boost.** `blur()` alone gives frosted
+ *    plastic. Real glass concentrates the colour behind it, so the
+ *    `saturate(180%)` is doing as much work as the blur.
+ * 2. **A very large corner radius.** Apple's hardware and software both use
+ *    continuous curvature at radii most designers think are too big. At 40px
+ *    on a 720px card it stops looking like a rounded box and starts looking
+ *    like an object.
+ * 3. **A bright top edge and a dim bottom one.** A pane lit from above
+ *    catches light on its top bevel and shades on its lower. One inset
+ *    highlight and one inset shadow is the whole trick.
+ * 4. **Two shadows, not one.** A tight contact shadow plus a wide soft one.
+ *    A single shadow reads as a sticker; two read as an object at a height.
+ */
+export const GlassCard: React.FC<GlassCardProps> = ({
+  title = "Raw Motion",
+  caption = "Motion design, natively",
+  eyebrow = "",
+  accent,
+  width = 720,
+  height = 420,
+  sway = 1.8,
+  radius = 42,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
+
+  const enter = springProgress(frame, fps, 0, "cinematic");
+  const rotY = (oscillate(frame, 260) - 0.5) * 2 * sway;
+  const rotX = (oscillate(frame, 340, 0.25) - 0.5) * 2 * (sway * 0.4);
+  const float = (oscillate(frame, 300, 0.4) - 0.5) * 10;
+
+  return (
+    <div style={{ perspective: 2200 }}>
+      <div
+        style={{
+          position: "relative",
+          width,
+          height,
+          padding: width * 0.075,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          borderRadius: radius,
+          background:
+            "linear-gradient(150deg, rgb(255 255 255 / 0.78) 0%, rgb(255 255 255 / 0.58) 100%)",
+          backdropFilter: "blur(48px) saturate(180%)",
+          WebkitBackdropFilter: "blur(48px) saturate(180%)",
+          boxShadow: [
+            // Top bevel catching the light, lower edge in shade.
+            "inset 0 1.5px 0 0 rgb(255 255 255 / 0.95)",
+            "inset 0 -1px 0 0 rgb(0 0 0 / 0.05)",
+            "inset 0 0 0 1px rgb(255 255 255 / 0.6)",
+            // Contact shadow, then the wide one that places it in space.
+            "0 2px 10px -2px rgb(0 0 0 / 0.07)",
+            "0 40px 90px -24px rgb(0 0 0 / 0.22)",
+          ].join(", "),
+          transform: [
+            `translateY(${mix(enter, 48, 0) + float}px)`,
+            `rotateX(${rotX}deg)`,
+            `rotateY(${rotY}deg)`,
+            `scale(${mix(enter, 0.96, 1)})`,
+          ].join(" "),
+          opacity: progress(frame, 0, 22, "outExpo"),
+          fontFamily: SANS,
+        }}
+      >
+        {/* Specular sweep. Tied to the sway so the highlight tracks the
+            surface angle - a static highlight on a moving pane immediately
+            reads as a texture rather than as a reflection. */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: radius,
+            background: `linear-gradient(${112 + rotY * 6}deg, transparent 32%, rgb(255 255 255 / 0.55) 46%, transparent 58%)`,
+            opacity: 0.5,
+            pointerEvents: "none",
+          }}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            top: width * 0.075,
+            left: width * 0.075,
+            width: width * 0.1,
+            height: width * 0.1,
+            borderRadius: width * 0.028,
+            background: `linear-gradient(150deg, ${tint}, ${tint}88)`,
+            boxShadow: `0 10px 26px -6px ${tint}66, inset 0 1px 0 0 rgb(255 255 255 / 0.5)`,
+          }}
+        />
+
+        {eyebrow ? (
+          <div
+            style={{
+              fontSize: width * 0.026,
+              fontWeight: 590,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: tint,
+              marginBottom: width * 0.018,
+            }}
+          >
+            {eyebrow}
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            fontSize: width * 0.082,
+            fontWeight: 600,
+            letterSpacing: "-0.035em",
+            lineHeight: 1.05,
+            color: theme.text,
+          }}
+        >
+          {title}
+        </div>
+
+        <div
+          style={{
+            marginTop: width * 0.016,
+            fontSize: width * 0.032,
+            fontWeight: 400,
+            letterSpacing: "-0.012em",
+            color: theme.textDim,
+          }}
+        >
+          {caption}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * GlassBar
+ * ------------------------------------------------------------------ */
+
+export interface GlassBarProps {
+  /** Pipe-separated labels: `Overview | Library | Settings`. */
+  items?: string;
+  /** 1-based index of the selected item. */
+  active?: number;
+  accent?: string;
+  fontSize?: number;
+  radius?: number;
+}
+
+/**
+ * A floating frosted toolbar with a sliding selection pill.
+ *
+ * The pill is what sells it. Apple's segmented controls animate the
+ * *selection* between positions rather than cross-fading two states, so the
+ * eye tracks one object moving instead of two things changing - and that
+ * single detail is most of why their interfaces feel physical.
+ */
+export const GlassBar: React.FC<GlassBarProps> = ({
+  items = "Overview | Library | Settings",
+  active = 1,
+  accent,
+  fontSize = 26,
+  radius = 999,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
+
+  const labels = String(items)
+    .split("|")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const target = Math.min(labels.length, Math.max(1, Math.round(active))) - 1;
+  // The pill starts at the first item and springs to the active one, so the
+  // move is visible rather than already finished on frame zero.
+  const slide = springProgress(frame, fps, 18, "smooth");
+  const position = mix(slide, 0, target);
+
+  const padX = fontSize * 1.15;
+  const itemWidth = fontSize * 6.2;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        padding: fontSize * 0.34,
+        borderRadius: radius,
+        background: "linear-gradient(150deg, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0.52) 100%)",
+        backdropFilter: "blur(40px) saturate(180%)",
+        WebkitBackdropFilter: "blur(40px) saturate(180%)",
+        boxShadow: [
+          "inset 0 1.5px 0 0 rgb(255 255 255 / 0.95)",
+          "inset 0 0 0 1px rgb(255 255 255 / 0.55)",
+          "0 2px 8px -2px rgb(0 0 0 / 0.06)",
+          "0 26px 60px -20px rgb(0 0 0 / 0.2)",
+        ].join(", "),
+        fontFamily: SANS,
+        opacity: progress(frame, 0, 20, "outExpo"),
+        transform: `translateY(${mix(progress(frame, 0, 26, "outExpo"), 16, 0)}px)`,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: fontSize * 0.34,
+          left: fontSize * 0.34 + position * itemWidth,
+          width: itemWidth,
+          height: fontSize * 2.1,
+          borderRadius: radius,
+          background: "rgb(255 255 255 / 0.9)",
+          boxShadow: "0 2px 8px -2px rgb(0 0 0 / 0.12), inset 0 0 0 1px rgb(255 255 255 / 0.9)",
+        }}
+      />
+
+      {labels.map((label, i) => (
+        <div
+          key={label}
+          style={{
+            position: "relative",
+            width: itemWidth,
+            height: fontSize * 2.1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: `0 ${padX}px`,
+            fontSize,
+            fontWeight: 500,
+            letterSpacing: "-0.012em",
+            color: i === target ? tint : theme.textDim,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </div>
+      ))}
+    </div>
+  );
+};

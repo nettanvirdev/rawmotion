@@ -114,7 +114,12 @@ colours, so "make it warmer" is one call rather than forty edits.
 `midnight` (default, technical SaaS), `graphite` (neutral, editorial),
 `aurora` (teal, developer tooling), `ember` (warm, premium launch),
 `ultraviolet` (magenta, high energy), `arctic` (ice blue, data), `paper`
-(light, documentation).
+(light, documentation), `glass` (Apple-style light frosted glass).
+
+On the `glass` theme use `GlassCard` and `GlassBar` rather than
+`ProductCard`, and let panels stay translucent - the frosting over the
+pastel ground *is* the design. Code blocks switch to a light syntax palette
+automatically.
 
 Do **not** set `accent` on individual components unless you deliberately
 want one element off-theme. Leaving it unset is what makes a theme change

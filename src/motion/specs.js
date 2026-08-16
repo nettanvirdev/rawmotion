@@ -89,6 +89,35 @@ export const COMPONENT_SPECS = {
     },
   },
 
+  GlassCard: {
+    label: "Glass card",
+    description:
+      "Apple-style frosted glass card: translucent white pane, large continuous radius, specular sweep tied to its sway. Use on the `glass` theme.",
+    props: {
+      eyebrow: { kind: "text", label: "Eyebrow", default: "" },
+      title: { kind: "text", label: "Title", default: "Raw Motion" },
+      caption: { kind: "text", label: "Caption", default: "Motion design, natively" },
+      accent: { kind: "color", label: "Accent", default: "" },
+      width: { kind: "number", label: "Width", default: 720, min: 200, max: 3200, step: 10 },
+      height: { kind: "number", label: "Height", default: 420, min: 160, max: 2000, step: 10 },
+      sway: { kind: "number", label: "Sway", default: 1.8, min: 0, max: 10, step: 0.2 },
+      radius: { kind: "number", label: "Radius", default: 42, min: 0, max: 160, step: 2 },
+    },
+  },
+
+  GlassBar: {
+    label: "Glass bar",
+    description:
+      "Floating frosted toolbar with a selection pill that slides to the active item. Pipe-separated labels.",
+    props: {
+      items: { kind: "text", label: "Items", default: "Overview | Library | Settings" },
+      active: { kind: "number", label: "Active", default: 1, min: 1, max: 8, step: 1 },
+      accent: { kind: "color", label: "Accent", default: "" },
+      fontSize: { kind: "number", label: "Font size", default: 26, min: 10, max: 90, step: 1 },
+      radius: { kind: "number", label: "Radius", default: 999, min: 0, max: 999, step: 1 },
+    },
+  },
+
   /* ---- explainer vocabulary ---- */
 
   Chapter: {

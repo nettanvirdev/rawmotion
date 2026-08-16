@@ -28,6 +28,7 @@ export interface Theme {
   panelEdge: string;
   surface: string;
   isLight?: boolean;
+  glass?: boolean;
   backdrop: Record<string, number | boolean>;
 }
 

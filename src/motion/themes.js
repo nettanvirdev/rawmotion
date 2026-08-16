@@ -50,6 +50,7 @@
  * @property {string} panelEdge         Hairline on panels.
  * @property {string} surface           Subtle fill for un-emphasised chips and nodes.
  * @property {boolean} [isLight]        True for light themes; components invert a few cues.
+ * @property {boolean} [glass]          Frosted-translucent panels rather than solid ones.
  * @property {object} backdrop          Props for the `studio` background.
  */
 
@@ -149,6 +150,40 @@ export const THEMES = {
     panelEdge: "rgb(255 255 255 / 0.08)",
     surface: "rgb(255 255 255 / 0.04)",
     backdrop: { hue: 238, hueSpread: 26, intensity: 0.85, dots: 0.75, spotlight: 1, grain: 0.05, grid: 0.35 },
+  },
+
+
+  glass: {
+    name: "Glass",
+    description:
+      "Apple-style light glass. Near-white ground with soft colour bleed, frosted squircle panels, near-black type. For consumer product films and anything that should feel like hardware.",
+    background: "#f2f2f5",
+    accent: "#0071e3",
+    accentSoft: "#5aa9f0",
+    text: "#1d1d1f",
+    textDim: "#6e6e73",
+    textFaint: "#a1a1a6",
+    // Panels are translucent white rather than solid: on a light ground the
+    // frosting is the whole effect, and a solid panel just looks like a box.
+    panel: "rgb(255 255 255 / 0.72)",
+    panelEdge: "rgb(255 255 255 / 0.85)",
+    surface: "rgb(255 255 255 / 0.55)",
+    isLight: true,
+    glass: true,
+    // A wide hue spread is what produces the distinct pink, blue and violet
+    // regions of an Apple ground, rather than one uniform tint. Five poles
+    // rather than four so no single blob dominates the frame.
+    backdrop: {
+      hue: 286,
+      hueSpread: 130,
+      intensity: 1.25,
+      points: 5,
+      dots: 0,
+      spotlight: 0.3,
+      grain: 0.012,
+      light: true,
+      soft: 1,
+    },
   },
 
   paper: {

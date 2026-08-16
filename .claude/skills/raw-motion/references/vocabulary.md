@@ -16,6 +16,7 @@ panel colours - do not hand-colour them.
 | `ember` | Warm amber and rose on near-black. Premium and cinematic - launches, brand films, anything that should feel expensive. |
 | `ultraviolet` | Magenta and violet with strong beams. High-energy - AI products, launches, anything that wants to feel loud. |
 | `arctic` | Ice blue on slate with a crisp dot grid. Clean and clinical - data, dashboards, analytics. |
+| `glass` | Apple-style light glass. Near-white ground with soft colour bleed, frosted squircle panels, near-black type. For consumer product films and anything that should feel like hardware. |
 | `paper` | Light. Warm off-white with a soft grey mesh and near-black type. For documentation and anything that has to read as printed. |
 
 ## Layout presets
@@ -85,6 +86,33 @@ Drawn mark beside a wordmark. Built for outros.
 | `wordmark` | text | `"Raw Motion"` |
 | `accent` | color | `inherits theme` |
 | `size` | number (24-400) | `96` |
+
+### GlassCard
+
+Apple-style frosted glass card: translucent white pane, large continuous radius, specular sweep tied to its sway. Use on the `glass` theme.
+
+| prop | type | default |
+| --- | --- | --- |
+| `eyebrow` | text | `""` |
+| `title` | text | `"Raw Motion"` |
+| `caption` | text | `"Motion design, natively"` |
+| `accent` | color | `inherits theme` |
+| `width` | number (200-3200) | `720` |
+| `height` | number (160-2000) | `420` |
+| `sway` | number (0-10) | `1.8` |
+| `radius` | number (0-160) | `42` |
+
+### GlassBar
+
+Floating frosted toolbar with a selection pill that slides to the active item. Pipe-separated labels.
+
+| prop | type | default |
+| --- | --- | --- |
+| `items` | text | `"Overview | Library | Settings"` |
+| `active` | number (1-8) | `1` |
+| `accent` | color | `inherits theme` |
+| `fontSize` | number (10-90) | `26` |
+| `radius` | number (0-999) | `999` |
 
 ### Chapter
 

@@ -20,7 +20,14 @@
  */
 
 import type React from "react";
-import { FeatureList, HeroTitle, LogoLockup, ProductCard } from "./components";
+import {
+  FeatureList,
+  GlassBar,
+  GlassCard,
+  HeroTitle,
+  LogoLockup,
+  ProductCard,
+} from "./components";
 import {
   BrowserFrame,
   Callout,
@@ -64,6 +71,8 @@ const COMPONENTS: Record<string, React.FC<any>> = {
   ProductCard,
   FeatureList,
   LogoLockup,
+  GlassCard,
+  GlassBar,
   Chapter,
   CodeBlock,
   Terminal,

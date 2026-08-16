@@ -487,6 +487,12 @@ export interface MeshGradientProps {
   /** Number of colour poles. Four reads as a mesh; more turns to mud. */
   points?: number;
   light?: boolean;
+  /**
+   * Wider, gentler poles that bleed into each other rather than reading as
+   * discrete lights. This is the difference between "coloured lighting" and
+   * the soft chromatic wash Apple puts behind hardware.
+   */
+  soft?: number;
 }
 
 /**
@@ -509,6 +515,7 @@ export const MeshGradient: React.FC<MeshGradientProps> = ({
   speed = 1,
   points = 4,
   light = false,
+  soft = 0,
 }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
@@ -524,11 +531,17 @@ export const MeshGradient: React.FC<MeshGradientProps> = ({
         // wash rather than as a lit space, and wash is exactly the failure
         // mode that makes a gradient background look cheap.
         y: mix(seededRandom(i * 13 + 5), -0.15, 0.72),
-        size: mix(seededRandom(i * 17 + 7), 0.7, 1.25),
+        // Fraction of the diagonal. On a dark ground the poles are meant to
+        // be larger than the frame - they are ambient light. On a light one
+        // they have to be *smaller*, or every pole overlaps every other and
+        // a deliberately wide hue spread averages into a single flat tint.
+        size: light
+          ? mix(seededRandom(i * 17 + 7), 0.42, 0.72)
+          : mix(seededRandom(i * 17 + 7), 0.7, 1.25) * (1 + soft * 0.5),
         period: mix(seededRandom(i * 19 + 11), 520, 1000),
         phase: seededRandom(i * 23 + 13),
       })),
-    [hue, hueSpread, points],
+    [hue, hueSpread, points, light, soft],
   );
 
   const diagonal = Math.hypot(width, height);
@@ -552,9 +565,13 @@ export const MeshGradient: React.FC<MeshGradientProps> = ({
         // alpha that reads as "a hint of colour" on black reads as a heavy
         // wash on white, and needs roughly half the strength.
         const alpha =
-          (light ? 0.1 : 0.17) * intensity * screenCompensation(pole.hue);
-        const lightness = light ? 0.72 : 0.56;
-        const chroma = light ? 0.07 : 0.13;
+          (light ? 0.3 : 0.17) * intensity * screenCompensation(pole.hue);
+        const lightness = light ? 0.74 : 0.56;
+        // Light grounds need *more* chroma, not less. On a dark field the eye
+        // reads a faint tint as coloured light; on near-white the same tint
+        // reads as dirt, and the frosted panels above have nothing worth
+        // refracting. The soft variant spreads rather than desaturates.
+        const chroma = light ? 0.13 : 0.13 * (soft ? 0.85 : 1);
 
         return (
           <div
@@ -568,8 +585,13 @@ export const MeshGradient: React.FC<MeshGradientProps> = ({
               transform: "translate(-50%, -50%)",
               borderRadius: "50%",
               background: `radial-gradient(circle, oklch(${lightness} ${chroma} ${pole.hue} / ${alpha}) 0%, transparent 62%)`,
-              filter: `blur(${size * 0.1}px)`,
-              mixBlendMode: light ? "multiply" : "screen",
+              filter: `blur(${size * (soft ? 0.13 : 0.1)}px)`,
+              // Dark grounds screen - overlapping poles read as light adding
+              // up. Light grounds composite normally: `multiply` makes every
+              // overlap converge toward a muddy average, so a deliberately
+              // wide hue spread collapsed into one uniform lavender instead
+              // of holding distinct pink and blue regions.
+              mixBlendMode: light ? "normal" : "screen",
             }}
           />
         );
@@ -845,6 +867,8 @@ export const Beams: React.FC<BeamsProps> = ({
 
 export interface StudioProps {
   hue?: number;
+  /** Softer, wider colour poles. The Apple-style light treatment. */
+  soft?: number;
   hueSpread?: number;
   intensity?: number;
   speed?: number;
@@ -890,6 +914,7 @@ export const Studio: React.FC<StudioProps> = ({
   grain = 0.045,
   vignette = 1,
   light = false,
+  soft = 0,
 }) => (
   <AbsoluteFill>
     {/* A dark base beneath the mesh. Without it the mesh IS the background
@@ -908,12 +933,23 @@ export const Studio: React.FC<StudioProps> = ({
       />
     ) : null}
 
+    {/* Light ground. Without it a light theme renders on whatever the page
+        happens to be, and the mesh has no surface to fall on. */}
+    {light ? (
+      <AbsoluteFill
+        style={{
+          background: `linear-gradient(170deg, oklch(0.985 0.002 ${hue}) 0%, oklch(0.966 0.003 ${hue}) 60%, oklch(0.951 0.004 ${hue}) 100%)`,
+        }}
+      />
+    ) : null}
+
     <MeshGradient
       hue={hue}
       hueSpread={hueSpread}
       intensity={intensity}
       speed={speed}
       light={light}
+      soft={soft}
     />
 
     {aurora > 0 ? (

@@ -21,7 +21,7 @@
 
 import React, { useMemo } from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import { CODE_COLORS, type Language, languageForFile, tokenizeBlock } from "./highlight";
+import { codeColors, type Language, languageForFile, tokenizeBlock } from "./highlight";
 import { DISPLAY_FONT, MONO_FONT, MaskedLines, TypeOn } from "./text";
 import { EASINGS, mix, oscillate, progress, springProgress, staggerDelay } from "./timing";
 import { themed, useTheme } from "./theme";
@@ -58,15 +58,36 @@ function splitLines(value: string): string[] {
 /** The panel treatment shared by CodeBlock, Terminal and FileTree. */
 function panelStyle(
   radius = 14,
-  theme?: { panel: string; panelEdge: string },
+  theme?: { panel: string; panelEdge: string; isLight?: boolean; glass?: boolean },
 ): React.CSSProperties {
+  // A frosted panel needs a real backdrop blur and a much softer, wider
+  // shadow. The dark treatment's near-opaque fill and hard 0.75 shadow read
+  // as a floating black rectangle on a light ground.
+  if (theme?.glass) {
+    return {
+      background: theme.panel,
+      borderRadius: radius * 1.8,
+      backdropFilter: "blur(40px) saturate(180%)",
+      WebkitBackdropFilter: "blur(40px) saturate(180%)",
+      boxShadow: [
+        `inset 0 1px 0 0 ${theme.panelEdge}`,
+        "inset 0 0 0 1px rgb(255 255 255 / 0.5)",
+        "0 2px 8px -2px rgb(0 0 0 / 0.06)",
+        "0 24px 60px -18px rgb(0 0 0 / 0.16)",
+      ].join(", "),
+      overflow: "hidden",
+    };
+  }
+
   return {
     background: theme?.panel ?? PANEL_BG,
     borderRadius: radius,
     boxShadow: [
-      `inset 0 1px 0 0 rgb(255 255 255 / 0.08)`,
+      `inset 0 1px 0 0 rgb(255 255 255 / ${theme?.isLight ? 0.9 : 0.08})`,
       `inset 0 0 0 1px ${theme?.panelEdge ?? PANEL_EDGE}`,
-      "0 40px 90px -24px rgb(0 0 0 / 0.75)",
+      theme?.isLight
+        ? "0 20px 50px -18px rgb(0 0 0 / 0.18)"
+        : "0 40px 90px -24px rgb(0 0 0 / 0.75)",
     ].join(", "),
     overflow: "hidden",
   };
@@ -76,7 +97,7 @@ function panelStyle(
 const WindowDots: React.FC = () => (
   <div style={{ display: "flex", gap: 7 }}>
     {["#ff5f57", "#febc2e", "#28c840"].map((c) => (
-      <div key={c} style={{ width: 11, height: 11, borderRadius: "50%", background: c, opacity: 0.85 }} />
+      <div key={c} style={{ width: 11, height: 11, borderRadius: "50%", background: c, opacity: 0.9 }} />
     ))}
   </div>
 );
@@ -131,6 +152,8 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const theme = useTheme();
+
+  const palette = codeColors(theme.isLight);
 
   const resolved: Language =
     language === "auto" ? (filename ? languageForFile(filename) : "ts") : language;
@@ -209,7 +232,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
                   style={{
                     width: gutter,
                     flexShrink: 0,
-                    color: "#4c5265",
+                    color: theme.textFaint,
                     fontSize: fontSize * 0.85,
                     textAlign: "right",
                     paddingRight: fontSize * 0.7,
@@ -220,9 +243,9 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
                 </span>
               ) : null}
 
-              <span style={{ fontSize, whiteSpace: "pre", color: CODE_COLORS.plain }}>
+              <span style={{ fontSize, whiteSpace: "pre", color: palette.plain }}>
                 {tokens.map((token, j) => (
-                  <span key={j} style={{ color: CODE_COLORS[token.kind] }}>
+                  <span key={j} style={{ color: palette[token.kind] }}>
                     {token.text}
                   </span>
                 ))}

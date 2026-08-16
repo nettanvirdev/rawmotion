@@ -49,7 +49,10 @@ const KEYWORDS = new Set([
 
 const LITERALS = new Set(["true", "false", "null", "undefined", "this", "super", "NaN"]);
 
-/** Palette. Deliberately low-saturation - saturated code on video vibrates. */
+/**
+ * Dark palette. Deliberately low-saturation - saturated code on video
+ * vibrates, and at video bitrates the chroma is the first thing to smear.
+ */
 export const CODE_COLORS: Record<TokenKind, string> = {
   plain: "#c9cddb",
   keyword: "#c4a2ff",
@@ -247,4 +250,32 @@ export function languageForFile(filename: string): Language {
   if (ext === "json") return "json";
   if (ext === "sh" || ext === "bash" || ext === "zsh") return "bash";
   return "text";
+}
+
+/**
+ * Light palette.
+ *
+ * Not the dark one darkened. Hue relationships that read correctly on a dark
+ * field fall apart on white: the dark palette's greens and blues sit at a
+ * lightness that vanishes against paper, and its comment grey becomes
+ * invisible. These are picked for roughly 7:1 contrast on a white panel,
+ * which is what keeps code legible after h264 has had its way with the
+ * chroma channels.
+ */
+export const CODE_COLORS_LIGHT: Record<TokenKind, string> = {
+  plain: "#1d1d1f",
+  keyword: "#9b2393",
+  string: "#0b7a3e",
+  comment: "#8a8a8f",
+  number: "#b8541b",
+  function: "#1f5fbf",
+  type: "#0f7b8a",
+  punctuation: "#6e6e73",
+  property: "#8a6d0b",
+  operator: "#5a5a60",
+};
+
+/** Pick a palette for the current surface. */
+export function codeColors(isLight?: boolean): Record<TokenKind, string> {
+  return isLight ? CODE_COLORS_LIGHT : CODE_COLORS;
 }
