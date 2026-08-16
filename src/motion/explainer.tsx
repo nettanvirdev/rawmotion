@@ -935,12 +935,26 @@ export const StatGrid: React.FC<StatGridProps> = ({
     [stats],
   );
 
+  // Never leave an empty column: three columns holding two stats pushes the
+  // pair off-centre inside their own cell, which reads as a mistake.
+  const columnCount = Math.max(1, Math.min(Math.round(columns), items.length));
+
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+        // Full width, not shrink-to-fit. `1fr` measures the *container*, and
+        // a grid sitting in a centred flex box has no width of its own - so
+        // the columns collapse to their content and the figures huddle in
+        // the middle of an otherwise empty band, with none of the presence a
+        // headline number is there to have. Filling the cell is what makes
+        // them span the frame and land on the grid's own column edges.
+        width: "100%",
         gap: size * 0.7,
+        // Values sit on a shared top edge even when one label wraps to two
+        // lines and its neighbours do not.
+        alignItems: "start",
         fontFamily: DISPLAY_FONT,
       }}
     >

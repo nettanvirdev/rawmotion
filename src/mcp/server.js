@@ -1008,6 +1008,42 @@ process.on("uncaughtException", (error) => {
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
+/**
+ * Exit when the client goes away.
+ *
+ * A stdio server has exactly one client - the process on the other end of
+ * the pipe - and no reason to exist without it. This is not tidiness. Render
+ * jobs are deliberately detached from the tool call that started them, so
+ * they survive the call; without this they also survive the *client*, and an
+ * orphaned server keeps every queued render running with nobody able to read
+ * its status or stop it. Found the hard way: a killed client left five
+ * concurrent 1080p renders saturating the machine, reachable only by PID.
+ *
+ * `stdin` ending is the signal.
+ *
+ * Where we lead our own process group, signalling the group takes the
+ * browser and ffmpeg children a render spawns down with us. Where we do not
+ * - the ordinary case, since a client spawns us as a plain child - the
+ * group belongs to the *client*, and signalling it would kill processes
+ * that are none of our business. So that path is taken only when the check
+ * says the group is ours; otherwise exiting is enough, and the renderer's
+ * own exit handlers reap what they started.
+ */
+function shutdown(reason) {
+  console.error(`[rawmotion] ${reason}; exiting.`);
+  try {
+    if (typeof process.getpgrp === "function" && process.getpgrp() === process.pid) {
+      process.kill(-process.pid, "SIGTERM");
+    }
+  } catch {
+    // Best effort. Our own exit is the part that matters.
+  }
+  process.exit(0);
+}
+
+process.stdin.on("close", () => shutdown("client disconnected"));
+process.stdin.on("end", () => shutdown("client closed stdin"));
+
 // stderr only - stdout is the MCP transport, and anything written there
 // corrupts the protocol stream.
 console.error(`[rawmotion] MCP server ready. Workspace: ${ROOT}`);
