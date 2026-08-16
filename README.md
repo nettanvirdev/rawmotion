@@ -53,8 +53,8 @@ npm run mcp          # stdio MCP, 23 tools
 { "mcpServers": { "rawmotion": { "command": "node", "args": ["src/mcp/server.js"] } } }
 ```
 
-An agent calls `describe_capabilities` to learn the vocabulary, `build_scenes`
-to commit a whole storyboard atomically, **`render_frame` and
+An agent calls `describe_capabilities` to learn the vocabulary and the theme
+list, `build_scenes` to commit a whole storyboard atomically, **`render_frame` and
 `render_contact_sheet` to actually look at what it made**, and `render_video`
 to export.
 
@@ -156,6 +156,8 @@ src/
                          the render bundle and the tests use it too.
     timing.ts            Easings, springs, stagger, deterministic random
     presets.ts           Entrance/exit presets
+    layout.ts            The 12x8 grid - how alignment is guaranteed
+    themes.js            Seven themes; components inherit them
     text.tsx             Masked line reveals - the house typography move
     backgrounds.tsx      Procedural cinematic backgrounds
     components.tsx       HeroTitle, ProductCard, FeatureList, LogoLockup

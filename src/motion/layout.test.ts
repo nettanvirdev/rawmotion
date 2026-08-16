@@ -206,3 +206,32 @@ describe("MCP vocabulary", () => {
     expect([...LAYOUT_PRESET_NAMES].sort()).toEqual(Object.keys(LAYOUT_PRESETS).sort());
   });
 });
+
+describe("optical balance", () => {
+  it("the split presets share a vertical centre", () => {
+    // A title and its content must sit on the same line, or the frame reads
+    // as two unrelated elements that happen to be side by side.
+    const left = resolveLayout(LAYOUT_PRESETS.splitLeft, W, H);
+    const right = resolveLayout(LAYOUT_PRESETS.splitRight, W, H);
+    expect(left.top + left.height / 2).toBeCloseTo(right.top + right.height / 2, 6);
+  });
+
+  it("the split presets centre near the middle of frame", () => {
+    // Not at 38%, which is where they were and which left the bottom half of
+    // every explainer scene empty.
+    const left = resolveLayout(LAYOUT_PRESETS.splitLeft, W, H);
+    const centre = (left.top + left.height / 2) / H;
+    expect(centre).toBeGreaterThan(0.44);
+    expect(centre).toBeLessThan(0.56);
+  });
+
+  it("a bottom-anchored note clears the split content", () => {
+    const split = resolveLayout(LAYOUT_PRESETS.splitLeft, W, H);
+    const note = resolveLayout(LAYOUT_PRESETS.bottomLeft, W, H);
+    // The note is bottom-aligned in its cell and the split content is
+    // centred in its own, so their content does not collide even though the
+    // boxes overlap.
+    expect(note.top + note.height).toBeGreaterThan(split.top + split.height / 2);
+    expect(note.left).toBe(split.left);
+  });
+});

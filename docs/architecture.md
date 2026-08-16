@@ -128,6 +128,55 @@ Three rules apply throughout:
    layer's transform, so the inspector's position controls and an entrance
    animation coexist instead of overwriting each other.
 
+### Alignment is a grid, not arithmetic
+
+`src/motion/layout.ts`.
+
+The original renderer made every layer an `AbsoluteFill` centred on its own
+content, then nudged it with `transform.x`. Two layers given the same `x`
+therefore had **different left edges**, offset by half the difference in
+their widths. Nothing could sit on a shared line, because no shared line
+existed — and no amount of tuning the numbers could produce one.
+
+A layer now names a cell on a 12-column × 8-row grid inside a safe margin.
+Its edge is a property of the grid rather than of its content, so a
+40-character headline and a three-word label in column 1 line up exactly.
+Named presets (`splitLeft`, `splitRight`, `caption`, `bottomLeft`, …) mean an
+agent picks a composition instead of doing geometry.
+
+Layers with no `layout` keep the old centred behaviour, so projects authored
+before the grid render identically — which is why `hasLayout` distinguishes
+absent from `{}`.
+
+`layout.test.ts` pins the guarantee at four aspect ratios.
+
+### Themes
+
+`src/motion/themes.js` (plain JS, so the MCP server can read it) plus
+`theme.tsx` for the context. A theme carries the backdrop, the accent and the
+type colours; components read them from context rather than taking hard-coded
+defaults, so one `set_theme` call restyles a whole film instead of an agent
+editing forty layers and missing one.
+
+Explicit props still win — a deliberately off-theme callout is possible.
+`themed()` treats the empty string as absent, because both the inspector and
+the MCP schema produce `""` for "not set" and `??` would render it as a
+colour.
+
+Three colour bugs are worth recording, because all three were invisible in
+code and obvious on screen:
+
+- The background layer's defaults hard-coded `hue: 250`, which silently
+  overrode every theme. An `ember` project rendered violet. Defaults are now
+  the `kind` alone.
+- **HSL lightness is not perceptual.** The same `L` reads far brighter in
+  amber than in blue, so one palette could not hold across hues. The
+  backgrounds are authored in OKLCH.
+- OKLCH fixes the *pole* colour, but poles are composited with `screen`,
+  which works per-channel in sRGB — amber has high red *and* green, so it
+  piles up far more luminance than violet at identical OKLCH lightness.
+  `screenCompensation()` scales alpha down for the hues that screen brightest.
+
 ### Type rises out of a mask
 
 The house rule for typography, and the thing that most separates designed

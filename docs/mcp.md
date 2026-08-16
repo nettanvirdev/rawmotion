@@ -45,6 +45,7 @@ project directory per call. Every path it is handed goes through
 | `create_project` | Returns `dirName`, which every other tool takes. |
 | `inspect_project` | Full model plus computed scene timings. |
 | `set_composition` | Dimensions, fps, backdrop, name. |
+| `set_theme` | The whole film's look in one call. Components inherit it. |
 | `build_scenes` | Whole storyboard in one atomic call. The efficient path. |
 | `add_scene` / `update_scene` / `delete_scene` / `reorder_scenes` | |
 | `add_layer` / `update_layer` / `delete_layer` | Patches merge into existing props. |
@@ -117,6 +118,27 @@ a time is forty round trips, and an agent that has already decided on the
 storyboard should be able to commit it at once. It is also atomic: either the
 whole film lands or none of it does.
 
+## Positioning: use the grid
+
+**Place layers with `layout`, not `transform.x/y`.** This is the single
+biggest quality difference between a video that looks designed and one that
+looks assembled.
+
+A layer without a layout is centred on its own content, so two layers given
+the same `x` end up with different left edges — off by half the difference in
+their widths. With `layout`, an element's edge comes from a 12-column × 8-row
+grid, so two layers in column 1 line up exactly whatever is inside them.
+
+```jsonc
+{ "layout": { "preset": "splitLeft" } }              // named region
+{ "layout": { "preset": "splitLeft", "row": 1 } }    // preset, adjusted
+{ "layout": { "col": 7, "span": 6, "align": "left" } } // explicit
+```
+
+`describe_capabilities` lists every preset. `transform.x/y` still exists and
+still works — it is the right tool for an animation offset, and the wrong one
+for placement.
+
 ## Coordinate conventions
 
 These cause most first-attempt mistakes, so they are worth stating flatly.
@@ -125,7 +147,7 @@ These cause most first-attempt mistakes, so they are worth stating flatly.
   `start: 200` in a 90-frame scene never appears.
 - **`render_frame` and `timeline` use absolute project frames.**
 - **`transform.x/y` are pixel offsets from the centre of frame**, not
-  top-left coordinates. At 1920×1080 the safe box is roughly ±760 by ±400.
+  top-left coordinates — and not the way to align things.
 - **A transition overlaps its scene with the next one**, so adding one makes
   the film shorter, not longer.
 - **Everything is integer frames.** Seconds are `frames / composition.fps`.

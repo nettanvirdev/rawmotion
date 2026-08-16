@@ -166,13 +166,19 @@ export const LAYOUT_PRESETS: Record<string, LayoutSpec> = {
   centerUpper: { col: 2, span: 10, row: 2, rowSpan: 3, align: "center", valign: "middle" },
   centerLower: { col: 2, span: 10, row: 5, rowSpan: 3, align: "center", valign: "middle" },
 
-  /* Split: title left, content right. The workhorse for explainers. */
-  splitLeft: { col: 1, span: 5, row: 2, rowSpan: 4, align: "left", valign: "middle" },
-  splitRight: { col: 7, span: 6, row: 2, rowSpan: 5, align: "center", valign: "middle" },
+  /* Split: title left, content right. The workhorse for explainers.
+   *
+   * Both span rows 2-7 so their contents centre on the same line - halfway
+   * down the safe area. An earlier version stopped at row 5, which centred
+   * everything at 38% of frame and left the bottom half conspicuously empty;
+   * the frame read as top-heavy even though each element was individually
+   * well placed. Optical centre matters more than any single element's box. */
+  splitLeft: { col: 1, span: 5, row: 2, rowSpan: 6, align: "left", valign: "middle" },
+  splitRight: { col: 7, span: 6, row: 2, rowSpan: 6, align: "center", valign: "middle" },
 
   /* Split the other way */
-  splitLeftWide: { col: 1, span: 6, row: 2, rowSpan: 5, align: "center", valign: "middle" },
-  splitRightNarrow: { col: 8, span: 5, row: 2, rowSpan: 4, align: "left", valign: "middle" },
+  splitLeftWide: { col: 1, span: 6, row: 2, rowSpan: 6, align: "center", valign: "middle" },
+  splitRightNarrow: { col: 8, span: 5, row: 2, rowSpan: 6, align: "left", valign: "middle" },
 
   /* Stacked thirds */
   topBand: { col: 1, span: 12, row: 1, rowSpan: 2, align: "center", valign: "middle" },
