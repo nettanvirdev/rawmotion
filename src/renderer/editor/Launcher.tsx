@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, FolderOpen, Loader2, Plus, Settings } from "lucide-react";
+import { AlertTriangle, FolderOpen, Loader2, Plus, Settings, Trash2 } from "lucide-react";
 import { COMPOSITION_PRESETS } from "@shared/project.js";
 import { TEMPLATES } from "@shared/templates.js";
 import { bridge, errorMessage, type ProjectSummary } from "@/lib/bridge";
@@ -172,32 +172,14 @@ export const Launcher: React.FC<{
             ) : (
               <div className="space-y-1">
                 {projects.map((project) => (
-                  <button
+                  <ProjectRow
                     key={project.dirName}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void open(project.dirName)}
-                    className="group flex w-full items-center gap-3 rounded-[8px] bg-[var(--rm-chrome)] px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--rm-chrome-high)]"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] text-[var(--rm-text)]">
-                        {project.name}
-                        {project.broken ? (
-                          <span className="ml-2 text-[11px] text-[var(--rm-danger)]">
-                            unreadable
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="rm-num mt-0.5 text-[11px] text-[var(--rm-text-faint)]">
-                        {project.broken
-                          ? project.dirName
-                          : `${project.width}x${project.height} · ${project.fps}fps · ${project.sceneCount} ${project.sceneCount === 1 ? "scene" : "scenes"}`}
-                      </p>
-                    </div>
-                    <span className="rm-num shrink-0 text-[11px] text-[var(--rm-text-faint)]">
-                      {relativeTime(project.updatedAt)}
-                    </span>
-                  </button>
+                    project={project}
+                    busy={busy}
+                    onOpen={() => void open(project.dirName)}
+                    onDeleted={() => void refresh()}
+                    onError={setError}
+                  />
                 ))}
               </div>
             )}
@@ -211,6 +193,93 @@ export const Launcher: React.FC<{
         canChangeWorkspace
         onWorkspaceChanged={refresh}
       />
+    </div>
+  );
+};
+
+/**
+ * One recent-project row. Delete is a two-step control - the trash icon
+ * arms, a second click confirms - and the folder goes to the OS trash, so a
+ * slip is recoverable from the bin rather than gone.
+ */
+const ProjectRow: React.FC<{
+  project: ProjectSummary;
+  busy: boolean;
+  onOpen: () => void;
+  onDeleted: () => void;
+  onError: (message: string) => void;
+}> = ({ project, busy, onOpen, onDeleted, onError }) => {
+  const [armed, setArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      await bridge.workspace.delete(project.dirName);
+      onDeleted();
+    } catch (e) {
+      onError(errorMessage(e));
+      setDeleting(false);
+      setArmed(false);
+    }
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        if (!busy && !deleting) onOpen();
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !busy && !deleting) onOpen();
+      }}
+      onMouseLeave={() => setArmed(false)}
+      className={cn(
+        "group flex w-full cursor-pointer items-center gap-3 rounded-[8px] bg-[var(--rm-chrome)] px-3 py-2.5 text-left transition-colors duration-100 hover:bg-[var(--rm-chrome-high)]",
+        (busy || deleting) && "pointer-events-none opacity-60",
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] text-[var(--rm-text)]">
+          {project.name}
+          {project.broken ? (
+            <span className="ml-2 text-[11px] text-[var(--rm-danger)]">unreadable</span>
+          ) : null}
+        </p>
+        <p className="rm-num mt-0.5 text-[11px] text-[var(--rm-text-faint)]">
+          {project.broken
+            ? project.dirName
+            : `${project.width}x${project.height} · ${project.fps}fps · ${project.sceneCount} ${project.sceneCount === 1 ? "scene" : "scenes"}`}
+        </p>
+      </div>
+      <span className="rm-num shrink-0 text-[11px] text-[var(--rm-text-faint)]">
+        {relativeTime(project.updatedAt)}
+      </span>
+      {armed ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            void remove();
+          }}
+          className="shrink-0 rounded-[6px] bg-[var(--rm-danger)] px-2 py-1 text-[11px] font-medium text-white"
+        >
+          {deleting ? "Deleting…" : "Delete?"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          title="Move project to trash"
+          onClick={(e) => {
+            e.stopPropagation();
+            setArmed(true);
+          }}
+          className="shrink-0 rounded-[6px] p-1.5 text-[var(--rm-text-faint)] opacity-0 transition-opacity duration-100 hover:bg-[var(--rm-chrome-low)] hover:text-[var(--rm-danger)] group-hover:opacity-100"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 };
@@ -278,7 +347,7 @@ const NewProjectForm: React.FC<{
             className={cn(
               "rounded-[8px] p-3 text-left transition-colors duration-100",
               templateId === template.id
-                ? "bg-[var(--rm-accent-dim)] shadow-[0_8px_24px_-10px_oklch(0.72_0.16_275/0.45)]"
+                ? "bg-[var(--rm-accent-dim)]"
                 : "bg-[var(--rm-chrome-high)] hover:bg-[color-mix(in_oklch,var(--rm-chrome-high),white_4%)]",
             )}
           >

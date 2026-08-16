@@ -24,6 +24,8 @@ import {
   useAssetUrl,
 } from "./assets";
 import { LayerView } from "./layers";
+import { planMorph, type MorphPlan } from "./morph";
+import { MorphOverlay } from "./morph-overlay";
 import { ThemeProvider } from "./theme";
 import { resolveTheme } from "./themes.js";
 import { EASINGS, blurFilter, mix, progress, seededRandom } from "./timing";
@@ -43,6 +45,21 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
   resolveAsset = staticAssetResolver,
 }) => {
   const timings = useMemo(() => sceneTimings(project), [project]);
+
+  // Continuity plans, one per `morph` boundary. Computed once per project
+  // edit - the pairing is pure data analysis, not per-frame work.
+  const morphPlans = useMemo(() => {
+    const plans = new Map<number, MorphPlan>();
+    project.scenes.forEach((scene, i) => {
+      const next = project.scenes[i + 1];
+      if (!next) return;
+      if (scene.transition?.type !== "morph") return;
+      if (timings[i].overlapWithNext <= 0) return;
+      const plan = planMorph(scene, next);
+      if (plan.pairs.length) plans.set(i, plan);
+    });
+    return plans;
+  }, [project, timings]);
 
   const themeRef = (project as { theme?: { preset?: string; overrides?: object } }).theme;
   const theme = resolveTheme(themeRef?.preset, themeRef?.overrides);
@@ -65,6 +82,11 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
           const timing = timings[i];
           const incomingOverlap = i > 0 ? timings[i - 1].overlapWithNext : 0;
 
+          // Layers consumed by a morph on either side of this scene: hidden
+          // here and drawn by the overlay instead.
+          const outPlan = morphPlans.get(i);
+          const inPlan = morphPlans.get(i - 1);
+
           return (
             <Sequence
               key={scene.id}
@@ -81,10 +103,37 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
                 // how a cross-dissolve actually works.
                 transition={i > 0 ? project.scenes[i - 1].transition : undefined}
                 transitionFrames={incomingOverlap}
+                morphOut={
+                  outPlan
+                    ? {
+                        ids: outPlan.fromIds,
+                        boundary: scene.durationInFrames - timing.overlapWithNext,
+                      }
+                    : undefined
+                }
+                morphIn={inPlan ? { ids: inPlan.toIds, until: incomingOverlap } : undefined}
               />
             </Sequence>
           );
         })}
+
+        {/* Morph overlays ride above both scenes for the overlap window. */}
+        {[...morphPlans.entries()].map(([i, plan]) => (
+          <Sequence
+            key={`morph-${project.scenes[i].id}`}
+            from={timings[i + 1].from}
+            durationInFrames={timings[i].overlapWithNext}
+            name={`Morph: ${project.scenes[i].name} -> ${project.scenes[i + 1].name}`}
+            layout="none"
+          >
+            <MorphOverlay
+              from={project.scenes[i]}
+              to={project.scenes[i + 1]}
+              overlap={timings[i].overlapWithNext}
+              plan={plan}
+            />
+          </Sequence>
+        ))}
 
         <AudioTracks project={project} />
       </AbsoluteFill>
@@ -101,11 +150,21 @@ const SceneView: React.FC<{
   scene: SceneModel;
   transition?: SceneModel["transition"];
   transitionFrames: number;
-}> = ({ scene, transition, transitionFrames }) => {
+  /** Layers a morph overlay draws instead, once the boundary is reached. */
+  morphOut?: { ids: Set<string>; boundary: number };
+  /** Layers a morph overlay draws instead, until the overlap has passed. */
+  morphIn?: { ids: Set<string>; until: number };
+}> = ({ scene, transition, transitionFrames, morphOut, morphIn }) => {
   const frame = useCurrentFrame();
 
   const camera = useCameraTransform(scene, frame);
   const enter = useTransitionStyle(transition, transitionFrames, frame);
+
+  const hidden = (layer: SceneModel["layers"][number]): boolean => {
+    if (morphOut && frame >= morphOut.boundary && morphOut.ids.has(layer.id)) return true;
+    if (morphIn && frame < morphIn.until && morphIn.ids.has(layer.id)) return true;
+    return false;
+  };
 
   return (
     <AbsoluteFill style={enter.outer}>
@@ -121,9 +180,9 @@ const SceneView: React.FC<{
           backfaceVisibility: "hidden",
         }}
       >
-        {scene.layers.map((layer) => (
-          <LayerView key={layer.id} layer={layer} />
-        ))}
+        {scene.layers.map((layer) =>
+          hidden(layer) ? null : <LayerView key={layer.id} layer={layer} />,
+        )}
       </AbsoluteFill>
     </AbsoluteFill>
   );
@@ -179,6 +238,14 @@ function useTransitionStyle(
   switch (transition.type) {
     case "fade":
       return { outer: { opacity: t }, inner: {} };
+
+    case "morph":
+      // The continuity cut. Matched layers are gliding in the overlay above;
+      // this style only carries the *unmatched* remainder of the incoming
+      // scene, which fades up fast so the ground never dips. Layers then
+      // resolve with their own entrance animations - the scene change reads
+      // as a re-layout, not a cut.
+      return { outer: { opacity: Math.min(1, t * 1.6) }, inner: {} };
 
     case "blur":
       return {

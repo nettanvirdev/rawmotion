@@ -48,7 +48,9 @@ export type PropSpec =
   | { kind: "text"; label: string; default: string; multiline?: boolean }
   | { kind: "number"; label: string; default: number; min?: number; max?: number; step?: number }
   | { kind: "color"; label: string; default: string }
-  | { kind: "select"; label: string; default: string; options: { value: string; label: string }[] };
+  | { kind: "select"; label: string; default: string; options: { value: string; label: string }[] }
+  /** A project-asset path; the inspector renders a picker with import. */
+  | { kind: "image"; label: string; default: string };
 
 export interface RegistryEntry {
   name: string;

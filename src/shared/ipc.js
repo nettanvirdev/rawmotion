@@ -24,6 +24,7 @@ export const CHANNELS = {
 
   WORKSPACE_LIST: "workspace:list",
   WORKSPACE_REVEAL: "workspace:reveal",
+  WORKSPACE_DELETE: "workspace:delete",
 
   SETTINGS_GET: "settings:get",
   SETTINGS_UPDATE: "settings:update",

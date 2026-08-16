@@ -231,16 +231,22 @@ export const TextField: React.FC<{
   placeholder?: string;
   multiline?: boolean;
   rows?: number;
-}> = ({ value, onChange, onCommit, placeholder, multiline, rows = 3 }) => {
+  /** Monospace, for code-like content such as JSON. */
+  mono?: boolean;
+}> = ({ value, onChange, onCommit, placeholder, multiline, rows = 3, mono }) => {
   if (multiline) {
     return (
       <textarea
         value={value}
-        rows={rows}
+        rows={mono ? Math.max(rows, 10) : rows}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onCommit}
-        className={cn(FIELD_CLASS, "h-auto resize-y py-1.5 leading-[1.5]")}
+        className={cn(
+          FIELD_CLASS,
+          "h-auto resize-y py-1.5 leading-[1.5]",
+          mono && "rm-num text-[11px] leading-[1.6]",
+        )}
       />
     );
   }
@@ -365,7 +371,10 @@ export const SelectField: React.FC<{
 
       {open && rect
         ? createPortal(
-            <>
+            // `rm-editor` re-establishes the chrome tokens: the portal lands
+            // on document.body, outside the editor root that defines them,
+            // and without it the listbox background resolves to transparent.
+            <div className="rm-editor contents">
               {/* Transparent backdrop: any interaction outside closes. */}
               <div
                 className="fixed inset-0 z-[70]"
@@ -420,7 +429,7 @@ export const SelectField: React.FC<{
                   ),
                 )}
               </div>
-            </>,
+            </div>,
             document.body,
           )
         : null}

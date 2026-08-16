@@ -210,6 +210,7 @@ export const EditorShell: React.FC<{
       { id: "add-text", group: "Create", label: "Add text layer", run: () => addLayerHere("text") },
       { id: "add-shape", group: "Create", label: "Add shape layer", run: () => addLayerHere("shape") },
       { id: "add-background", group: "Create", label: "Add background layer", run: () => addLayerHere("background") },
+      { id: "add-composite", group: "Create", label: "Add composite layer (custom component)", run: () => addLayerHere("composite") },
 
       { id: "import", group: "Assets", label: "Import media", run: () => void importMedia() },
 
@@ -233,7 +234,7 @@ export const EditorShell: React.FC<{
     [editor, projectStore, project, duration, dirName],
   );
 
-  function addLayerHere(type: "text" | "shape" | "background") {
+  function addLayerHere(type: "text" | "shape" | "background" | "composite") {
     const timings = sceneTimings(project);
     const index = Math.max(0, timings.findLastIndex((t) => editor.playhead >= t.from));
     const scene = project.scenes[index];

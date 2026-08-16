@@ -122,6 +122,7 @@ interface RawBridge {
   workspace: {
     list(): Promise<IpcResult<ProjectSummary[]>>;
     reveal(dirName?: string): Promise<IpcResult<boolean>>;
+    delete(dirName: string): Promise<IpcResult<boolean>>;
   };
   settings: {
     get(): Promise<IpcResult<SettingsPayload>>;
@@ -232,6 +233,7 @@ export const bridge = {
   workspace: {
     list: () => unwrap(requireBridge().workspace.list()),
     reveal: (dirName?: string) => unwrap(requireBridge().workspace.reveal(dirName)),
+    delete: (dirName: string) => unwrap(requireBridge().workspace.delete(dirName)),
   },
 
   settings: {

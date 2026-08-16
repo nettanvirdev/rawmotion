@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld("rawmotion", {
   workspace: {
     list: () => ipcRenderer.invoke("workspace:list"),
     reveal: (dirName) => ipcRenderer.invoke("workspace:reveal", dirName),
+    delete: (dirName) => ipcRenderer.invoke("workspace:delete", dirName),
   },
 
   /* ---- settings ---- */

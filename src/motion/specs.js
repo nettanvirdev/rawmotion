@@ -200,7 +200,8 @@ export const COMPONENT_SPECS = {
 
   DiagramFlow: {
     label: "Flow diagram",
-    description: "Chain of boxes with connectors that draw in sequence. Prefix a line with > to emphasise it.",
+    description:
+      "Chain of frosted nodes traced in reading order; a light pulse then travels the connectors. Prefix a line with > to emphasise it.",
     props: {
       nodes: {
         kind: "text",
@@ -217,10 +218,45 @@ export const COMPONENT_SPECS = {
           { value: "horizontal", label: "Horizontal" },
         ],
       },
+      shape: {
+        kind: "select",
+        label: "Shape",
+        default: "rounded",
+        options: [
+          { value: "rounded", label: "Rounded" },
+          { value: "pill", label: "Pill" },
+          { value: "square", label: "Square" },
+        ],
+      },
+      tone: {
+        kind: "select",
+        label: "Tone",
+        default: "frosted",
+        options: [
+          { value: "frosted", label: "Frosted" },
+          { value: "filled", label: "Filled" },
+          { value: "outline", label: "Outline" },
+        ],
+      },
+      connector: {
+        kind: "select",
+        label: "Connector",
+        default: "line",
+        options: [
+          { value: "line", label: "Line" },
+          { value: "arrow", label: "Arrow" },
+          { value: "dotted", label: "Dotted" },
+        ],
+      },
       accent: { kind: "color", label: "Accent", default: "" },
       fontSize: { kind: "number", label: "Font size", default: 26, min: 8, max: 90, step: 1 },
       nodeWidth: { kind: "number", label: "Node width", default: 340, min: 80, max: 1600, step: 10 },
       gap: { kind: "number", label: "Gap", default: 40, min: 4, max: 300, step: 2 },
+      beat: { kind: "number", label: "Beat", default: 12, min: 4, max: 40, step: 1 },
+      pulse: { kind: "select", label: "Pulse", default: "on", options: [
+        { value: "on", label: "On" },
+        { value: "off", label: "Off" },
+      ] },
       delay: { kind: "number", label: "Delay", default: 0, min: 0, max: 3000, step: 1 },
     },
   },
@@ -242,7 +278,7 @@ export const COMPONENT_SPECS = {
     description: "Window chrome around a screenshot. Product footage in a frame reads as an application.",
     props: {
       url: { kind: "text", label: "URL", default: "rawmotion.app" },
-      src: { kind: "text", label: "Image", default: "" },
+      src: { kind: "image", label: "Image", default: "" },
       width: { kind: "number", label: "Width", default: 1080, min: 200, max: 3840, step: 10 },
       height: { kind: "number", label: "Height", default: 660, min: 200, max: 2160, step: 10 },
       sway: { kind: "number", label: "Sway", default: 1.6, min: 0, max: 10, step: 0.2 },
@@ -252,7 +288,7 @@ export const COMPONENT_SPECS = {
   StatGrid: {
     label: "Stat grid",
     description:
-      "Headline figures. One per line as `value | label`. Spans the full width of its layout cell, so give it a wide one - `middleBand` or `center`, not a split.",
+      "Headline figures that count up to their value, each over a short accent rule. One per line as `value | label`. Spans the full width of its layout cell, so give it a wide one - `middleBand` or `center`, not a split.",
     props: {
       stats: {
         kind: "text",
@@ -263,6 +299,14 @@ export const COMPONENT_SPECS = {
       accent: { kind: "color", label: "Accent", default: "" },
       size: { kind: "number", label: "Size", default: 72, min: 16, max: 260, step: 2 },
       columns: { kind: "number", label: "Columns", default: 3, min: 1, max: 6, step: 1 },
+      countUp: { kind: "select", label: "Count up", default: "on", options: [
+        { value: "on", label: "On" },
+        { value: "off", label: "Off" },
+      ] },
+      tile: { kind: "select", label: "Tiles", default: "off", options: [
+        { value: "off", label: "Off" },
+        { value: "on", label: "On" },
+      ] },
     },
   },
 

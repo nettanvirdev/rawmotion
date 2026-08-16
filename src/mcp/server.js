@@ -182,6 +182,9 @@ server.tool(
         "ALIGNMENT: use layer.layout (a 12-column x 8-row grid) rather than transform x/y. Two layers in the same column get identical left edges regardless of their content width; transform x/y cannot do that, because each layer is centred on its own box.",
         "Set the project theme rather than colouring components individually - components inherit accent, text and panel colours, so one set_theme call restyles everything.",
         "Text layers take a `fontFamily` prop naming a family from `fonts` (e.g. \"Playfair Display\"). Fonts load from Google Fonts at render time - nothing needs installing. Empty means the system stack.",
+        "MORPH TRANSITIONS: transition type 'morph' is the continuity cut - the signature of high-end product films. Layers matched across the boundary glide and transform into their new place instead of cutting: matched by `morphId` (explicit, works across types - a shape can become a card), or automatically by identical type+name. Two single-line text layers morph per-character (shared letters travel, changed letters resolve through blur). Layers whose props differ only numerically interpolate those props mid-glide. Everything else gets a container transform: one surface glides while old content defocuses into new. Use overlaps of 14-24 frames. Give consecutive scenes the same background and pair the hero element - that is what makes a film feel like one continuous composition.",
+        "COMPOSITE LAYERS: layer type 'composite' renders a custom component you design as `props.nodes` - a JSON tree of {type: 'column'|'row'|'box'|'text'|'circle'|'spacer'|'svg'|'path'|'image', children?, gap?, pad?, align?, justify?, width?, height?, fill?, radius?, stroke?, strokeWidth?, glass?, glow?, text?, size?, weight?, color?, letterSpacing?, mono?, fontFamily?, svg? (raw markup), path? {d, viewBox, stroke, strokeWidth, fill}, src?, fit?, enter? {preset: 'fade'|'rise'|'pop'|'scale'|'blur'|'draw'|'none', delay?, duration?}, stagger?}. Colours accept theme tokens: 'accent', 'accentSoft', 'text', 'textDim', 'panel', 'surface', 'none' - use tokens so the design follows the theme. Children auto-stagger their entrances. Use composites when no registered component fits: pricing cards, charts, UI mockups, illustrations. `props.stagger` sets frames between root entrances.",
+        "The editor fully understands composites - they are ordinary layers with timing, layout, transform, entrance/exit and morphId - so prefer them over baking custom art into images.",
       ],
     });
   }),
@@ -513,11 +516,11 @@ const animationSchema = z
 
 server.tool(
   "add_layer",
-  "Add a layer to a scene. For type 'component', set props.component to a registered name and props.props to its properties. Times are relative to the scene.",
+  "Add a layer to a scene. For type 'component', set props.component to a registered name and props.props to its properties. For type 'composite', set props.nodes to a node tree (see describe_capabilities notes). Times are relative to the scene.",
   {
     dirName: z.string(),
     sceneId: z.string(),
-    type: z.enum(["text", "image", "video", "shape", "background", "component"]),
+    type: z.enum(LAYER_TYPES),
     name: z.string().optional(),
     start: z.number().int().optional().describe("Frames from the scene's start. Default 0."),
     duration: z.number().int().optional().describe("Default: to the end of the scene."),
@@ -526,8 +529,12 @@ server.tool(
     props: z.record(z.any()).optional().describe("Type-specific properties."),
     enter: animationSchema,
     exit: animationSchema,
+    morphId: z
+      .string()
+      .optional()
+      .describe("Continuity handle: pairs this layer with one in the neighbouring scene across a 'morph' transition."),
   },
-  tool(async ({ dirName, sceneId, type, name, start, duration, layout, transform, props, enter, exit }) => {
+  tool(async ({ dirName, sceneId, type, name, start, duration, layout, transform, props, enter, exit, morphId }) => {
     const { project } = await load(dirName);
     const index = resolveSceneIndex(project, sceneId);
     const scene = project.scenes[index];
@@ -541,6 +548,7 @@ server.tool(
       layout,
       transform,
       props,
+      morphId,
       animation: {
         ...(enter ? { enter: { delay: 0, ...enter } } : {}),
         ...(exit ? { exit: { delay: 0, ...exit } } : {}),
@@ -580,6 +588,10 @@ server.tool(
     props: z.record(z.any()).optional(),
     enter: animationSchema,
     exit: animationSchema,
+    morphId: z
+      .string()
+      .optional()
+      .describe("Continuity handle for 'morph' transitions. Empty string clears it."),
   },
   tool(async ({ dirName, layerId, layout, transform, props, enter, exit, ...rest }) => {
     const { project } = await load(dirName);
@@ -648,7 +660,7 @@ server.tool(
           transition: transitionSchema,
           layers: z.array(
             z.object({
-              type: z.enum(["text", "image", "video", "shape", "background", "component"]),
+              type: z.enum(LAYER_TYPES),
               name: z.string().optional(),
               start: z.number().int().optional(),
               duration: z.number().int().optional(),
@@ -657,6 +669,7 @@ server.tool(
               props: z.record(z.any()).optional(),
               enter: animationSchema,
               exit: animationSchema,
+              morphId: z.string().optional(),
             }),
           ),
         }),
@@ -682,6 +695,7 @@ server.tool(
             layout: l.layout,
             transform: l.transform,
             props: l.props,
+            morphId: l.morphId,
             animation: {
               ...(l.enter ? { enter: { delay: 0, ...l.enter } } : {}),
               ...(l.exit ? { exit: { delay: 0, ...l.exit } } : {}),

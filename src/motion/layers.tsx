@@ -24,6 +24,7 @@ import { BACKGROUND_REGISTRY, type BackgroundKind } from "./backgrounds";
 import { layerMotion } from "./presets";
 import { blurFilter, progress, staggerDelay } from "./timing";
 import { useAssetUrl } from "./assets";
+import { CompositeLayer } from "./composite";
 import { lookupComponent } from "./registry";
 import {
   alignFor,
@@ -154,7 +155,9 @@ const LayerBody: React.FC<{ layer: Layer }> = ({ layer }) => {
   );
 };
 
-const LayerContent: React.FC<{ layer: Layer }> = ({ layer }) => {
+/** Exported for the morph overlay, which re-renders matched layers' content
+ *  inside its own gliding container during a `morph` transition. */
+export const LayerContent: React.FC<{ layer: Layer }> = ({ layer }) => {
   switch (layer.type) {
     case "text":
       return <TextLayer layer={layer} />;
@@ -168,6 +171,8 @@ const LayerContent: React.FC<{ layer: Layer }> = ({ layer }) => {
       return <BackgroundLayer layer={layer} />;
     case "component":
       return <ComponentLayer layer={layer} />;
+    case "composite":
+      return <CompositeLayer layer={layer} />;
     default:
       return null;
   }

@@ -174,16 +174,21 @@ Indented tree. Two spaces per level, trailing / for a directory, trailing * to h
 
 ### DiagramFlow
 
-Chain of boxes with connectors that draw in sequence. Prefix a line with > to emphasise it.
+Chain of frosted nodes traced in reading order; a light pulse then travels the connectors. Prefix a line with > to emphasise it.
 
 | prop | type | default |
 | --- | --- | --- |
 | `nodes` | text | `"Prompt\nProject model\nComposition\n> MP4"` |
 | `direction` | select (vertical or horizontal) | `"vertical"` |
+| `shape` | select (rounded, pill or square) | `"rounded"` |
+| `tone` | select (frosted, filled or outline) | `"frosted"` |
+| `connector` | select (line, arrow or dotted) | `"line"` |
 | `accent` | color | `inherits theme` |
 | `fontSize` | number (8-90) | `26` |
 | `nodeWidth` | number (80-1600) | `340` |
 | `gap` | number (4-300) | `40` |
+| `beat` | number (4-40) | `12` |
+| `pulse` | select (on or off) | `"on"` |
 | `delay` | number (0-3000) | `0` |
 
 ### Callout
@@ -212,7 +217,7 @@ Window chrome around a screenshot. Product footage in a frame reads as an applic
 
 ### StatGrid
 
-Headline figures. One per line as `value | label`. Spans the full width of its layout cell, so give it a wide one - `middleBand` or `center`, not a split.
+Headline figures that count up to their value, each over a short accent rule. One per line as `value | label`. Spans the full width of its layout cell, so give it a wide one - `middleBand` or `center`, not a split.
 
 | prop | type | default |
 | --- | --- | --- |
@@ -220,6 +225,8 @@ Headline figures. One per line as `value | label`. Spans the full width of its l
 | `accent` | color | `inherits theme` |
 | `size` | number (16-260) | `72` |
 | `columns` | number (1-6) | `3` |
+| `countUp` | select (on or off) | `"on"` |
+| `tile` | select (off or on) | `"off"` |
 
 ### Caption
 
@@ -295,11 +302,59 @@ the theme.
 - `orbitIn` — Orbit - arcs in along a curve *(Organic)*
 - `flipIn` — Flip - card settling flat *(Organic)*
 
+## Composite layers (custom components)
+
+Layer type `composite` renders a component you design yourself as
+`props.nodes` - a JSON tree of primitives, styled with theme tokens so it
+belongs to the film's design language:
+
+- Node types: `column`, `row`, `box` (containers), `text`, `circle`,
+  `spacer`, `svg` (raw markup), `path` ({d, viewBox, stroke, strokeWidth,
+  fill}; `enter.preset: "draw"` traces the stroke), `image` (project asset).
+- Container props: `children`, `gap`, `pad`, `align`, `justify`, `stagger`.
+- Surface props: `fill`, `radius`, `stroke`, `strokeWidth`, `glass`, `glow`,
+  `opacity`, `width`, `height`, `grow`.
+- Text props: `text`, `size`, `weight`, `color`, `letterSpacing`, `mono`,
+  `fontFamily`.
+- Motion: `enter { preset: fade|rise|pop|scale|blur|draw|none, delay?,
+  duration? }`; children stagger automatically (`props.stagger` frames).
+- Colour tokens: `accent`, `accentSoft`, `text`, `textDim`, `panel`,
+  `surface`, `none`. Prefer tokens over raw CSS colours - the component then
+  restyles with the theme like every built-in.
+
+Composites are ordinary layers - timing, layout, transform, entrance/exit
+and `morphId` all work - so the editor can select and edit them. Reach for
+one whenever no registered component fits: pricing cards, charts, UI
+mockups, badges, illustrations.
+
+## Morph transitions (continuity cuts)
+
+`transition.type: "morph"` is the signature move of high-end product films:
+the scene change reads as one composition re-arranging itself, not a cut.
+
+- Matched layers glide and transform across the boundary. Match explicitly
+  with `morphId` (works across types - a shape can become a card, a card a
+  diagram), or automatically by identical type + name.
+- Two single-line text layers morph per character: shared letters travel to
+  their new positions, removed letters defocus away, new letters resolve out
+  of blur left to right.
+- Same-type layers whose props differ only numerically interpolate those
+  props mid-glide (a GlassBar's active pill slides, a bar re-scores).
+- Everything else gets a container transform: one continuous surface glides
+  while the old content defocuses into the new.
+- Unmatched layers fade with their own entrances/exits; backgrounds
+  crossfade, so give consecutive scenes the same background and the ground
+  never moves.
+- Use overlaps of 14-24 frames; camera `none` or `push` on the incoming
+  scene. Chain several morph boundaries to make a whole film feel like one
+  continuous shot.
+
 ## Scene transitions
 
 `scene.transition.type`, overlapping this scene with the next:
 
 - `none` — hard cut
+- `morph` — continuity glide; matched layers travel and transform (see above)
 - `fade` — cross dissolve; the default between related scenes
 - `blur` — blur dissolve; a change of subject
 - `slide` — incoming scene rises in

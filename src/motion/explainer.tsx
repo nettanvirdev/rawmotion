@@ -487,15 +487,29 @@ export interface DiagramFlowProps {
   delay?: number;
   nodeWidth?: number;
   gap?: number;
+  /** Node silhouette. */
+  shape?: "rounded" | "pill" | "square";
+  /** Connector treatment. */
+  connector?: "line" | "arrow" | "dotted";
+  /** Node surface treatment. */
+  tone?: "frosted" | "filled" | "outline";
+  /** Frames per build step - lower is snappier. */
+  beat?: number;
+  /** Light pulse travelling the connectors after the build settles. Accepts "on"/"off". */
+  pulse?: boolean | string;
 }
 
 /**
- * A chain of boxes joined by connectors that draw themselves.
+ * A chain of nodes joined by connectors that draw themselves.
  *
- * Nodes and connectors alternate in time - box, line, box, line - so the
- * diagram builds in the order it is read. Revealing all the boxes and then
- * all the lines is faster to write and reads as a diagram appearing rather
- * than a process being traced.
+ * The build is traced in reading order - node, connector, node - with each
+ * node settling on a spring as its connector arrives, so the diagram reads
+ * as a process being followed rather than a picture appearing. After the
+ * build, a soft light pulse travels the connectors and the emphasised node
+ * breathes; a diagram on screen for ten seconds must not be a freeze-frame.
+ *
+ * Surfaces follow the panel language: frosted on light themes, quiet fills
+ * on dark ones, and *no drop shadows* - depth belongs to the backdrop.
  */
 export const DiagramFlow: React.FC<DiagramFlowProps> = ({
   nodes = "Prompt\nProject model\nComposition\nMP4",
@@ -505,11 +519,17 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
   delay = 0,
   nodeWidth = 340,
   gap = 40,
+  shape = "rounded",
+  connector = "line",
+  tone = "frosted",
+  beat = 12,
+  pulse = true,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const theme = useTheme();
   const tint = themed(accent, theme.accent);
+  const light = Boolean(theme.isLight || theme.glass);
 
   const items = useMemo(
     () =>
@@ -522,8 +542,48 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
   );
 
   const vertical = direction === "vertical";
-  // Each node plus its outgoing connector occupies one beat.
-  const beat = 12;
+  const stepBeat = Math.max(4, beat);
+  const radius = shape === "pill" ? 999 : shape === "square" ? 8 : 14;
+  const builtAt = delay + items.length * stepBeat * 2;
+
+  const surfaceFor = (emphasised: boolean): React.CSSProperties => {
+    if (emphasised && tone !== "outline") {
+      return {
+        color: light ? theme.text : theme.text,
+        background: `linear-gradient(160deg, ${tint}${light ? "2e" : "38"}, ${tint}12)`,
+        boxShadow: `inset 0 0 0 1.5px ${tint}${light ? "55" : "66"}`,
+      };
+    }
+    switch (tone) {
+      case "filled":
+        return {
+          color: theme.textDim,
+          background: theme.panel,
+          boxShadow: `inset 0 0 0 1px ${theme.panelEdge}`,
+        };
+      case "outline":
+        return {
+          color: emphasised ? theme.text : theme.textDim,
+          background: "transparent",
+          boxShadow: `inset 0 0 0 1.5px ${emphasised ? tint : theme.panelEdge}`,
+        };
+      default:
+        // Frosted: the Callout pane language, scaled down to a node.
+        return light
+          ? {
+              color: theme.textDim,
+              background: "linear-gradient(180deg, rgb(255 255 255 / 0.78), rgb(255 255 255 / 0.58))",
+              boxShadow: "inset 0 0 0 1px rgb(255 255 255 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.95)",
+              backdropFilter: "blur(24px) saturate(150%)",
+              WebkitBackdropFilter: "blur(24px) saturate(150%)",
+            }
+          : {
+              color: theme.textDim,
+              background: `linear-gradient(180deg, ${theme.surface}, rgb(255 255 255 / 0.02))`,
+              boxShadow: `inset 0 0 0 1px ${theme.panelEdge}`,
+            };
+    }
+  };
 
   return (
     <div
@@ -536,10 +596,25 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
       }}
     >
       {items.map((item, i) => {
-        const nodeStart = delay + i * beat * 2;
-        const t = progress(frame, nodeStart, 20, EASINGS.outExpo);
-        const s = springProgress(frame, fps, nodeStart, "smooth");
-        const connectorT = progress(frame, nodeStart + beat, beat + 4, EASINGS.outExpo);
+        const nodeStart = delay + i * stepBeat * 2;
+        const t = progress(frame, nodeStart, 18, EASINGS.outExpo);
+        const s = springProgress(frame, fps, nodeStart, "crisp");
+        const connectorT = progress(frame, nodeStart + stepBeat, stepBeat + 4, EASINGS.outExpo);
+
+        // The emphasised node breathes once built - a slow, small ring
+        // swell, never a shadow.
+        const breathe =
+          item.emphasised && frame > builtAt
+            ? 1 + oscillate(frame - builtAt, fps * 3.2) * 0.015
+            : 1;
+
+        // A pulse of light glides along each connector on a shared period,
+        // offset per segment so the energy visibly travels the chain.
+        const period = fps * 2.6;
+        const doPulse = pulse !== false && pulse !== "off";
+        const pulseT = doPulse && frame > builtAt
+          ? ((frame - builtAt + i * (period / Math.max(1, items.length - 1))) % period) / period
+          : -1;
 
         return (
           <React.Fragment key={`${item.label}-${i}`}>
@@ -551,39 +626,105 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
                 // afterthought.
                 width: nodeWidth,
                 padding: `${fontSize * 0.72}px ${fontSize}px`,
-                borderRadius: 12,
+                borderRadius: radius,
                 textAlign: "center",
                 fontSize,
                 letterSpacing: "-0.01em",
-                color: item.emphasised ? theme.text : theme.textDim,
-                background: item.emphasised
-                  ? `linear-gradient(160deg, ${tint}38, ${tint}14)`
-                  : theme.surface,
-                boxShadow: item.emphasised
-                  ? `inset 0 0 0 1px ${tint}66, 0 18px 40px -14px ${tint}55`
-                  : `inset 0 0 0 1px ${theme.panelEdge}`,
+                fontWeight: item.emphasised ? 600 : 500,
+                ...surfaceFor(item.emphasised),
                 opacity: t,
-                transform: `translateY(${mix(s, 14, 0)}px) scale(${mix(s, 0.96, 1)})`,
+                transform: `translateY(${mix(s, 16, 0)}px) scale(${mix(s, 0.94, 1) * breathe})`,
               }}
             >
               {item.label}
             </div>
 
             {i < items.length - 1 ? (
-              <div
-                style={{
-                  width: vertical ? 2 : gap,
-                  height: vertical ? gap : 2,
-                  flexShrink: 0,
-                  background: `linear-gradient(${vertical ? "to bottom" : "to right"}, ${tint}88, ${tint}33)`,
-                  transform: vertical ? `scaleY(${connectorT})` : `scaleX(${connectorT})`,
-                  transformOrigin: vertical ? "top center" : "left center",
-                }}
+              <Connector
+                vertical={vertical}
+                gap={gap}
+                tint={tint}
+                kind={connector}
+                t={connectorT}
+                pulseT={pulseT}
               />
             ) : null}
           </React.Fragment>
         );
       })}
+    </div>
+  );
+};
+
+/** A connector segment: drawn line, optional arrowhead, travelling pulse. */
+const Connector: React.FC<{
+  vertical: boolean;
+  gap: number;
+  tint: string;
+  kind: "line" | "arrow" | "dotted";
+  t: number;
+  /** 0..1 position of the light pulse, or negative for none. */
+  pulseT: number;
+}> = ({ vertical, gap, tint, kind, t, pulseT }) => {
+  const along = vertical ? gap : gap;
+  const arrow = kind === "arrow" ? Math.min(8, gap * 0.25) : 0;
+
+  const lineStyle: React.CSSProperties = {
+    position: "absolute",
+    ...(vertical
+      ? { left: "50%", top: 0, width: 2, height: along - arrow, transform: `translateX(-50%) scaleY(${t})`, transformOrigin: "top center" }
+      : { top: "50%", left: 0, height: 2, width: along - arrow, transform: `translateY(-50%) scaleX(${t})`, transformOrigin: "left center" }),
+    background:
+      kind === "dotted"
+        ? `repeating-linear-gradient(${vertical ? "to bottom" : "to right"}, ${tint}aa 0 4px, transparent 4px 10px)`
+        : `linear-gradient(${vertical ? "to bottom" : "to right"}, ${tint}88, ${tint}44)`,
+    borderRadius: 2,
+  };
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: vertical ? 16 : along,
+        height: vertical ? along : 16,
+        flexShrink: 0,
+      }}
+    >
+      <div style={lineStyle} />
+
+      {arrow > 0 && t > 0.85 ? (
+        <div
+          style={{
+            position: "absolute",
+            ...(vertical
+              ? { left: "50%", bottom: 0, transform: "translateX(-50%)" }
+              : { top: "50%", right: 0, transform: "translateY(-50%) rotate(-90deg)" }),
+            width: 0,
+            height: 0,
+            borderLeft: "5px solid transparent",
+            borderRight: "5px solid transparent",
+            borderTop: `${arrow}px solid ${tint}aa`,
+            opacity: progress(t, 0.85, 0.15, "linear"),
+          }}
+        />
+      ) : null}
+
+      {pulseT >= 0 && pulseT <= 1 ? (
+        <div
+          style={{
+            position: "absolute",
+            ...(vertical
+              ? { left: "50%", top: `${pulseT * 100}%`, transform: "translate(-50%, -50%)" }
+              : { top: "50%", left: `${pulseT * 100}%`, transform: "translate(-50%, -50%)" }),
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            background: tint,
+            opacity: 0.8 * Math.sin(Math.PI * pulseT),
+            filter: "blur(1px)",
+          }}
+        />
+      ) : null}
     </div>
   );
 };
@@ -915,32 +1056,82 @@ export const Caption: React.FC<CaptionProps> = ({
  * StatGrid
  * ------------------------------------------------------------------ */
 
+/**
+ * Split a stat value into countable number and decoration, so "$4.9k+"
+ * counts 0 -> 4.9 while keeping its dollar and its k+. A value with no
+ * number ("∞", "GPU") simply doesn't count.
+ */
+function parseStat(value: string): {
+  numeric: number | null;
+  prefix: string;
+  suffix: string;
+  decimals: number;
+  group: boolean;
+} {
+  const none = { numeric: null, prefix: "", suffix: "", decimals: 0, group: false };
+  const m = /^([^0-9-]*)(-?\d[\d,]*(?:\.\d+)?)(.*)$/.exec(value);
+  if (!m) return none;
+  const raw = m[2].replace(/,/g, "");
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return none;
+  const decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
+  // Group thousands only if the author did - "1,204" counts grouped, a year
+  // like "2024" stays a year.
+  return { numeric, prefix: m[1], suffix: m[3], decimals, group: m[2].includes(",") };
+}
+
+function formatCounted(value: number, decimals: number, group: boolean): string {
+  const fixed = value.toFixed(decimals);
+  if (!group) return fixed;
+  const [int, frac] = fixed.split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return frac ? `${grouped}.${frac}` : grouped;
+}
+
 export interface StatGridProps {
   /** One per line: `value | label`. */
   stats?: string;
   accent?: string;
   size?: number;
   columns?: number;
+  /** Animate numeric values counting up to their target. Accepts "on"/"off". */
+  countUp?: boolean | string;
+  /** Sit each figure on its own frosted tile. Accepts "on"/"off". */
+  tile?: boolean | string;
 }
 
-/** A row of headline figures. */
+/**
+ * Headline figures.
+ *
+ * Values that parse as numbers count up on a hard deceleration - most of the
+ * distance in the first third, single digits at the end - which is what makes
+ * a figure feel *measured* rather than typeset. Prefixes and suffixes
+ * (`$`, `%`, `k+`, `★`) survive the count. A short accent rule under the value
+ * ties the figure to its label and gives the band structure without a box;
+ * `tile` adds the frosted pane when the figures need their own ground.
+ */
 export const StatGrid: React.FC<StatGridProps> = ({
   stats = "161 | tests passing\n644 | frames rendered\n0 | duration limits",
   accent,
   size = 72,
   columns = 3,
+  countUp = true,
+  tile = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const theme = useTheme();
   const tint = themed(accent, theme.accent);
+  const light = Boolean(theme.isLight || theme.glass);
+  const doCount = countUp !== false && countUp !== "off";
+  const doTile = tile === true || tile === "on";
 
   const items = useMemo(
     () =>
       splitLines(stats)
         .map((line) => {
           const [value, label = ""] = line.split("|");
-          return { value: value.trim(), label: label.trim() };
+          return { value: value.trim(), label: label.trim(), ...parseStat(value.trim()) };
         }),
     [stats],
   );
@@ -973,33 +1164,73 @@ export const StatGrid: React.FC<StatGridProps> = ({
         const s = springProgress(frame, fps, start, "smooth");
         const t = progress(frame, start, 22, EASINGS.outExpo);
 
+        // The count rides its own longer deceleration, so digits are still
+        // settling after the tile has landed - measured, not typeset.
+        const count = progress(frame, start + 4, 42, EASINGS.outExpo);
+        const shown =
+          doCount && item.numeric !== null
+            ? `${item.prefix}${formatCounted(item.numeric * count, item.decimals, item.group)}${item.suffix}`
+            : item.value;
+
+        const rule = progress(frame, start + 10, 24, EASINGS.outExpo);
+
         return (
           <div
             key={`${item.value}-${i}`}
             style={{
               opacity: t,
-              transform: `translateY(${mix(s, 18, 0)}px)`,
+              transform: `translateY(${mix(s, 22, 0)}px) scale(${mix(s, 0.96, 1)})`,
               textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              ...(doTile
+                ? {
+                    padding: `${size * 0.42}px ${size * 0.3}px ${size * 0.38}px`,
+                    borderRadius: size * 0.32,
+                    background: light
+                      ? "linear-gradient(180deg, rgb(255 255 255 / 0.78), rgb(255 255 255 / 0.56))"
+                      : `linear-gradient(180deg, ${theme.surface}, rgb(255 255 255 / 0.02))`,
+                    boxShadow: light
+                      ? "inset 0 0 0 1px rgb(255 255 255 / 0.9), inset 0 1px 0 rgb(255 255 255 / 0.95)"
+                      : `inset 0 0 0 1px ${theme.panelEdge}`,
+                    ...(light
+                      ? { backdropFilter: "blur(24px) saturate(150%)", WebkitBackdropFilter: "blur(24px) saturate(150%)" }
+                      : {}),
+                  }
+                : {}),
             }}
           >
             <div
               style={{
                 fontSize: size,
-                fontWeight: 600,
+                fontWeight: 650,
                 letterSpacing: "-0.04em",
                 color: tint,
                 fontVariantNumeric: "tabular-nums",
                 lineHeight: 1,
               }}
             >
-              {item.value}
+              {shown}
             </div>
             <div
               style={{
-                marginTop: size * 0.16,
-                fontSize: size * 0.22,
+                width: size * 0.5,
+                height: Math.max(2, size * 0.045),
+                borderRadius: 99,
+                margin: `${size * 0.2}px 0 ${size * 0.16}px`,
+                background: `linear-gradient(to right, ${tint}, ${tint}44)`,
+                transform: `scaleX(${rule})`,
+                transformOrigin: "center",
+              }}
+            />
+            <div
+              style={{
+                fontSize: size * 0.24,
+                fontWeight: 500,
                 color: theme.textDim,
-                letterSpacing: "0.02em",
+                letterSpacing: "0.01em",
+                lineHeight: 1.3,
               }}
             >
               {item.label}

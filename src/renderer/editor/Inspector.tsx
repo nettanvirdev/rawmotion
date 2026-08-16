@@ -15,7 +15,7 @@
  */
 
 import React from "react";
-import { Copy, Trash2 } from "lucide-react";
+import { Copy, Trash2, Upload } from "lucide-react";
 import type { Layer, Project, Scene } from "@shared/project.js";
 import {
   COMPOSITION_PRESETS,
@@ -30,6 +30,7 @@ import { presetOptions } from "@motion/presets";
 import { useEditorStore } from "@/state/editorStore";
 import { useProjectStore } from "@/state/projectStore";
 import * as ops from "@/state/operations";
+import { bridge } from "@/lib/bridge";
 import {
   ColorField,
   EmptyState,
@@ -304,6 +305,7 @@ const SceneInspector: React.FC<{ scene: Scene }> = ({ scene }) => {
             }
             options={[
               { value: "none", label: "Cut" },
+              { value: "morph", label: "Morph - continuity glide" },
               { value: "fade", label: "Cross dissolve" },
               { value: "blur", label: "Blur dissolve" },
               { value: "slide", label: "Slide up" },
@@ -316,6 +318,12 @@ const SceneInspector: React.FC<{ scene: Scene }> = ({ scene }) => {
             ]}
           />
         </Row>
+        {scene.transition.type === "morph" ? (
+          <p className="pl-[84px] text-[10px] leading-[1.5] text-[var(--rm-text-faint)]">
+            Layers sharing a morph ID - or a type and name - glide and
+            transform into their place in the next scene instead of cutting.
+          </p>
+        ) : null}
         {scene.transition.type !== "none" ? (
           <Row label="Length" hint="Frames of overlap with the next scene">
             <NumberField
@@ -420,6 +428,18 @@ const LayerInspector: React.FC<{ project: Project; layer: Layer; scene: Scene }>
               )
             }
             options={LAYER_TYPES.map((t) => ({ value: t, label: t }))}
+          />
+        </Row>
+        <Row label="Morph ID" hint="Layers with the same ID across a morph transition become one element">
+          <TextField
+            value={String((layer as Layer & { morphId?: string }).morphId ?? "")}
+            placeholder="e.g. hero"
+            onChange={(v) =>
+              apply("Change morph ID", (p) =>
+                ops.updateLayer(p, layer.id, { morphId: v || undefined } as never),
+                { coalesceKey: `layer:morph:${layer.id}` },
+              )
+            }
           />
         </Row>
       </Section>
@@ -745,10 +765,10 @@ const LayerPropsSection: React.FC<{
   if (layer.type === "image" || layer.type === "video") {
     return (
       <Section title={layer.type === "image" ? "Image" : "Video"}>
-        <Row label="Source" hint="Project-relative path, e.g. assets/images/hero.png">
-          <TextField
+        <Row label="Source" hint="Pick a project asset or import a file">
+          <AssetField
             value={String(props.src ?? "")}
-            placeholder="assets/..."
+            kind={layer.type === "image" ? "image" : "video"}
             onChange={(v) => setProps({ src: v }, "src")}
           />
         </Row>
@@ -781,6 +801,10 @@ const LayerPropsSection: React.FC<{
         ) : null}
       </Section>
     );
+  }
+
+  if (layer.type === "composite") {
+    return <CompositeSection layer={layer} setProps={setProps} />;
   }
 
   if (layer.type === "component") {
@@ -853,6 +877,12 @@ const LayerPropsSection: React.FC<{
                     value={String(inner[key] ?? spec.default)}
                     onChange={(v) => setInner(key, v)}
                   />
+                ) : spec.kind === "image" ? (
+                  <AssetField
+                    value={String(inner[key] ?? spec.default)}
+                    kind="image"
+                    onChange={(v) => setInner(key, v)}
+                  />
                 ) : (
                   <SelectField
                     value={String(inner[key] ?? spec.default)}
@@ -869,6 +899,145 @@ const LayerPropsSection: React.FC<{
   }
 
   return null;
+};
+
+/**
+ * The composite layer's node tree, edited as JSON.
+ *
+ * A composite is a component the AI designed - rows, columns, text, SVG -
+ * and its structure is open-ended, so the honest editor for it is the data
+ * itself. The JSON is validated on every keystroke but only committed when
+ * it parses, so a half-typed edit never corrupts the project.
+ */
+const CompositeSection: React.FC<{
+  layer: Layer;
+  setProps: (patch: Record<string, unknown>, key: string) => void;
+}> = ({ layer, setProps }) => {
+  const props = layer.props as { nodes?: unknown[]; stagger?: number };
+  const canonical = React.useMemo(
+    () => JSON.stringify(props.nodes ?? [], null, 2),
+    [props.nodes],
+  );
+
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const [invalid, setInvalid] = React.useState(false);
+
+  // An outside edit (undo, an agent writing the file) discards a stale draft.
+  React.useEffect(() => {
+    setDraft(null);
+    setInvalid(false);
+  }, [canonical]);
+
+  const count = Array.isArray(props.nodes) ? countNodes(props.nodes) : 0;
+
+  return (
+    <Section title="Composite">
+      <Row label="Stagger" hint="Frames between node entrances">
+        <SliderField
+          value={Number(props.stagger ?? 3)}
+          min={0}
+          max={20}
+          step={0.5}
+          precision={1}
+          onChange={(v) => setProps({ stagger: v }, "stagger")}
+        />
+      </Row>
+      <Row label="Nodes" hint={`${count} node${count === 1 ? "" : "s"} - rows, columns, text, svg, path, image`}>
+        <TextField
+          value={draft ?? canonical}
+          multiline
+          mono
+          onChange={(v) => {
+            setDraft(v);
+            try {
+              const parsed = JSON.parse(v);
+              if (!Array.isArray(parsed)) throw new Error("not an array");
+              setInvalid(false);
+              setProps({ nodes: parsed }, "nodes");
+            } catch {
+              setInvalid(true);
+            }
+          }}
+        />
+      </Row>
+      {invalid ? (
+        <p className="pl-[84px] text-[10px] text-[var(--rm-danger)]">
+          Invalid JSON - the last valid tree is still rendering.
+        </p>
+      ) : null}
+    </Section>
+  );
+};
+
+function countNodes(nodes: unknown[]): number {
+  let n = 0;
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") continue;
+    n += 1;
+    const children = (node as { children?: unknown[] }).children;
+    if (Array.isArray(children)) n += countNodes(children);
+  }
+  return n;
+}
+
+/**
+ * A project-asset picker: choose from imported assets of a kind, or import
+ * new files without leaving the inspector. The raw path stays editable for
+ * hand-written references.
+ */
+const AssetField: React.FC<{
+  value: string;
+  kind: "image" | "video" | "audio";
+  onChange: (value: string) => void;
+}> = ({ value, kind, onChange }) => {
+  const project = useProjectStore((s) => s.project);
+  const dirName = useProjectStore((s) => s.dirName);
+  const apply = useProjectStore((s) => s.apply);
+  const [busy, setBusy] = React.useState(false);
+
+  const assets = (project?.assets ?? []).filter((a) => a.kind === kind);
+
+  const importAndPick = async () => {
+    if (!dirName || busy) return;
+    setBusy(true);
+    try {
+      const result = await bridge.assets.import(dirName);
+      if (!result.canceled && result.imported.length) {
+        apply("Import assets", (p) => ops.registerAssets(p, result.imported));
+        const first = result.imported.find((a) => a.kind === kind) ?? result.imported[0];
+        if (first) onChange(first.src);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1">
+      <div className="min-w-0 flex-1">
+        {assets.length ? (
+          <SelectField
+            value={value}
+            onChange={onChange}
+            options={[
+              { value: "", label: "None" },
+              // Keep a hand-typed path selectable even if it is not a
+              // registered asset - deleting it silently would lose data.
+              ...(value && !assets.some((a) => a.src === value)
+                ? [{ value, label: value }]
+                : []),
+              ...assets.map((a) => ({ value: a.src, label: a.name })),
+            ]}
+          />
+        ) : (
+          <TextField value={value} placeholder="assets/..." onChange={onChange} />
+        )}
+      </div>
+      <IconButton title="Import media" onClick={() => void importAndPick()} disabled={busy}>
+        <Upload className="size-3.5" />
+      </IconButton>
+    </div>
+  );
 };
 
 /**

@@ -35,6 +35,7 @@ export const LAYER_TYPES = /** @type {const} */ ([
   "shape",
   "background",
   "component",
+  "composite",
 ]);
 
 /** Audio roles. Purely organisational - they drive track grouping and defaults. */
@@ -58,6 +59,7 @@ export const ASSET_KINDS = /** @type {const} */ ([
  */
 export const TRANSITION_TYPES = /** @type {const} */ ([
   "none",
+  "morph",
   "fade",
   "wipe",
   "slide",
@@ -123,6 +125,9 @@ export const COMPOSITION_PRESETS = [
  * @property {Transform} transform
  * @property {Record<string, unknown>} props  Type-specific payload.
  * @property {{ enter?: LayerAnimation, exit?: LayerAnimation }} animation
+ * @property {string} [morphId]  Continuity handle: a layer in the next scene
+ *   carrying the same morphId becomes the same on-screen element across a
+ *   `morph` transition - it glides and transforms instead of cutting.
  */
 
 /**
@@ -255,6 +260,11 @@ export function defaultLayerProps(type) {
       return { kind: "studio" };
     case "component":
       return { component: "", props: {} };
+    case "composite":
+      // A declarative node tree the AI (or a user) designs freely. The
+      // renderer interprets it; the shape of each node is validated there,
+      // not here, so the format can grow without a schema migration.
+      return { nodes: [], stagger: 3 };
     default:
       return {};
   }
@@ -278,6 +288,7 @@ export function createLayer(init) {
     props: { ...defaultLayerProps(type), ...(init.props ?? {}) },
     animation: init.animation ?? {},
     ...(init.layout ? { layout: normalizeLayout(init.layout) } : {}),
+    ...(typeof init.morphId === "string" && init.morphId ? { morphId: init.morphId } : {}),
   };
 }
 
@@ -489,6 +500,7 @@ function normalizeLayer(raw) {
       exit: normalizeAnimation(layer.animation?.exit),
     },
     ...(normalizeLayout(layer.layout) ? { layout: normalizeLayout(layer.layout) } : {}),
+    ...(typeof layer.morphId === "string" && layer.morphId ? { morphId: layer.morphId } : {}),
   };
 }
 

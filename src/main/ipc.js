@@ -107,6 +107,19 @@ export function registerIpc(getWindow) {
     return true;
   });
 
+  handle(CHANNELS.WORKSPACE_DELETE, async (_e, dirName) => {
+    if (typeof dirName !== "string" || !dirName) {
+      throw new Error("A project directory name is required");
+    }
+    if (openProject && openProject.dirName === dirName) {
+      throw new Error("Close the project before deleting it");
+    }
+    // The OS trash, not fs.rm: a deleted project must be recoverable. This is
+    // a user's film, and "are you sure" dialogs do not actually protect it.
+    await shell.trashItem(resolveProjectDir(dirName));
+    return true;
+  });
+
   /* ---------------- settings ---------------- */
 
   // One payload shape for all three handlers, so the settings UI has a single
