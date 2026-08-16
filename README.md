@@ -94,20 +94,28 @@ fixed in the engine rather than worked around in the project.
 **→ [docs/getting-started.md](docs/getting-started.md)** walks through
 installing the app, wiring Claude to it, and making the first video.
 
-### Download
+### Build the Windows app
 
-Windows x64 builds are on the
-[Releases page](https://github.com/nettanvirdev/rawmotion/releases):
+On Windows, with Node 22+:
 
-- `Raw Motion-<version>-portable.exe` — no install, double-click
-- `Raw Motion-Setup-<version>.exe` — installer
+```bash
+npm install
+npm run release:portable   # -> release\Raw Motion-0.1.0-portable.exe
+```
 
-They are unsigned, so SmartScreen will warn; *More info* → *Run anyway*.
+Single file, no install. `npm run release:installer` builds the NSIS
+installer instead, `npm run release` builds both.
+
+Build on the platform you are targeting — `@remotion/renderer` spawns a
+native compositor shipped as a per-platform optional dependency, so a
+cross-built package starts fine and then fails on the first render. The
+`Release (Windows)` workflow exists for that reason if you want CI to do it;
+it runs only on manual dispatch or a `v*` tag.
 
 The app is a window onto a project. To have Claude **make** videos you also
 want the repo, because the MCP server runs on Node outside the packaged app.
 
-### From source
+### Run from source
 
 ```bash
 npm install

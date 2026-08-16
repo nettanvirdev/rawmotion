@@ -12,21 +12,48 @@ made. Most people end up wanting both, so this guide sets up both.
 
 ---
 
-## 1. Install the app
+## 1. Build the app
 
-Download from [Releases](https://github.com/nettanvirdev/rawmotion/releases):
+On a Windows machine with [Node 22+](https://nodejs.org) and git:
 
-- **`Raw Motion-<version>-portable.exe`** — no install. Double-click it.
-- **`Raw Motion-Setup-<version>.exe`** — installer, adds a Start Menu entry.
+```bash
+git clone https://github.com/nettanvirdev/rawmotion
+cd rawmotion
+npm install
+npm run release:portable
+```
 
-Windows x64. The portable build writes no registry keys; it unpacks to a temp
-directory each run, so first launch is a few seconds slower than the
-installed build.
+That writes **`release\Raw Motion-0.1.0-portable.exe`** — a single file, no
+install, double-click to run. Other targets:
 
-> **SmartScreen will warn you.** The executables are unsigned — code signing
-> certificates cost money and this is CC0 software. Click *More info* →
-> *Run anyway*, or check the SHA-256 against the release notes if you would
-> rather verify than trust.
+| Command | Output |
+| --- | --- |
+| `npm run release:portable` | Portable exe, no install |
+| `npm run release:installer` | NSIS installer with a Start Menu entry |
+| `npm run release` | Both |
+| `npm run pack` | Unpacked folder, for smoke-testing packaging |
+
+The first build downloads the Electron binaries (~100 MB), once.
+
+**Build on the platform you are targeting.** `@remotion/renderer` spawns a
+native compositor shipped as a per-platform optional dependency, so a package
+built on Linux for Windows would start fine and then fail on the first
+render. There is a `Release (Windows)` GitHub Actions workflow that builds on
+`windows-latest` for this reason, if you ever want CI to do it — it runs only
+on manual dispatch or a `v*` tag, never on ordinary pushes.
+
+> Windows SmartScreen will warn about the exe. It is unsigned — code signing
+> certificates cost money and this is CC0 software. *More info* → *Run
+> anyway*.
+
+### Just want to run it, not package it?
+
+```bash
+npm run dev
+```
+
+Vite serves the renderer and Electron attaches with hot reload. This is the
+better loop if you are changing the app rather than shipping it.
 
 ### Where your projects live
 
