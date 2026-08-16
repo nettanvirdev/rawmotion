@@ -22,11 +22,22 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(root, "./src/renderer"),
+      // The composition engine and the main/renderer contract live outside
+      // the Vite root, so they need explicit aliases. Both are also consumed
+      // by the Electron main process and the Remotion render bundle, which
+      // is exactly why they are not under src/renderer.
+      "@motion": path.resolve(root, "./src/motion"),
+      "@shared": path.resolve(root, "./src/shared"),
     },
   },
   server: {
     port: 5173,
     strictPort: true,
+    fs: {
+      // Vite's root is src/renderer; without this it refuses to serve the
+      // sibling source directories the aliases above point at.
+      allow: [root],
+    },
   },
   clearScreen: false,
 });
