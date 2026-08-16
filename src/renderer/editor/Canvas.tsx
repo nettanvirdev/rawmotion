@@ -19,6 +19,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Player, type PlayerRef } from "@remotion/player";
 import {
+  AlertTriangle,
   Frame,
   Maximize2,
   Pause,
@@ -61,6 +62,26 @@ export const Canvas: React.FC<{
   const { width, height, fps } = project.composition;
   const durationInFrames = useMemo(() => projectDurationInFrames(project), [project]);
 
+  /* ---- crash recovery ---- */
+
+  // A composition that throws - a bad property, a malformed layer - takes the
+  // Player's internal error boundary with it, and that boundary never resets
+  // on its own: the canvas stays dark even after the offending edit is undone.
+  // Remounting the Player (the key below) is the only way out, so any project
+  // change while broken retries automatically - undo included.
+  const [previewEpoch, setPreviewEpoch] = useState(0);
+  const previewBroken = useRef(false);
+
+  const retryPreview = useCallback(() => {
+    previewBroken.current = false;
+    setPreviewEpoch((e) => e + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!previewBroken.current) return;
+    retryPreview();
+  }, [project, retryPreview]);
+
   /* ---- fit-to-viewport ---- */
 
   const [fitScale, setFitScale] = useState(0.5);
@@ -101,18 +122,26 @@ export const Canvas: React.FC<{
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnded = () => setPlaying(false);
+    const onError = () => {
+      previewBroken.current = true;
+      setPlaying(false);
+    };
 
     player.addEventListener("frameupdate", onFrameUpdate);
     player.addEventListener("play", onPlay);
     player.addEventListener("pause", onPause);
     player.addEventListener("ended", onEnded);
+    player.addEventListener("error", onError);
     return () => {
       player.removeEventListener("frameupdate", onFrameUpdate);
       player.removeEventListener("play", onPlay);
       player.removeEventListener("pause", onPause);
       player.removeEventListener("ended", onEnded);
+      player.removeEventListener("error", onError);
     };
-  }, [setPlayhead, setPlaying]);
+    // previewEpoch: the Player remounts after a crash and the new instance
+    // needs the listeners attached again.
+  }, [setPlayhead, setPlaying, previewEpoch]);
 
   // Editor -> Player, only while paused. Seeking during playback would fight
   // the Player's own advance and stutter.
@@ -215,6 +244,7 @@ export const Canvas: React.FC<{
           className="relative shrink-0"
         >
           <Player
+            key={previewEpoch}
             ref={playerRef}
             component={RawMotionComposition as unknown as React.FC<Record<string, unknown>>}
             inputProps={inputProps as unknown as Record<string, unknown>}
@@ -222,6 +252,10 @@ export const Canvas: React.FC<{
             compositionWidth={width}
             compositionHeight={height}
             fps={fps}
+            errorFallback={({ error }) => {
+              previewBroken.current = true;
+              return <PreviewCrash message={error.message} onRetry={retryPreview} />;
+            }}
             style={{ width: "100%", height: "100%" }}
             // The editor owns the transport, so the Player shows no chrome
             // of its own; two sets of transport controls in one window is a
@@ -323,6 +357,42 @@ const LayoutGuides: React.FC = () => {
     </div>
   );
 };
+
+/**
+ * Shown in place of the preview when the composition throws.
+ *
+ * The crash is almost always the *edit*, not the app - a malformed value in
+ * a layer the user just touched - so the copy points at undo, and the
+ * boundary above retries automatically the moment the project changes.
+ */
+const PreviewCrash: React.FC<{ message: string; onRetry: () => void }> = ({
+  message,
+  onRetry,
+}) => (
+  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--rm-chrome-low)] p-8 text-center">
+    <AlertTriangle className="size-5 text-[var(--rm-danger)]" />
+    <p className="max-w-[440px] text-[12px] leading-[1.6] text-[var(--rm-text-dim)]">
+      The preview crashed on the current composition
+      {message ? (
+        <>
+          : <span className="text-[var(--rm-danger)]">{message}</span>
+        </>
+      ) : (
+        "."
+      )}
+    </p>
+    <p className="text-[11px] text-[var(--rm-text-faint)]">
+      Undo the last change or fix the layer - the preview reloads on the next edit.
+    </p>
+    <button
+      type="button"
+      onClick={onRetry}
+      className="mt-1 h-8 rounded-[6px] bg-[var(--rm-chrome-high)] px-3 text-[12px] text-[var(--rm-text)] transition-colors duration-100 hover:bg-[var(--rm-accent)]"
+    >
+      Reload preview
+    </button>
+  </div>
+);
 
 const ZoomBadge: React.FC<{ scale: number; isFit: boolean }> = ({ scale, isFit }) => (
   <div className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/45 px-2.5 py-1 text-[10px] text-white/55 backdrop-blur-sm rm-num">
