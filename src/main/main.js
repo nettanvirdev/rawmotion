@@ -10,9 +10,11 @@
  * and giving up `sandbox: true` to change that would be a bad trade.
  */
 
-import { BrowserWindow, Menu, app, ipcMain, net, protocol, screen, shell } from "electron";
+import { BrowserWindow, Menu, app, ipcMain, protocol, screen, shell } from "electron";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { Readable } from "node:stream";
 import { CHANNELS } from "../shared/ipc.js";
 import { registerIpc, sendWindowState } from "./ipc.js";
 import {
@@ -47,8 +49,29 @@ protocol.registerSchemesAsPrivileged([
  * `standard` scheme requires one and hosts are lowercased - a project
  * directory name could not survive there.
  */
+/** Content types the preview actually loads. Media elements need a real
+ * type on the response, or Chromium's sniffing can refuse to play. */
+const ASSET_MIME = {
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".ogg": "audio/ogg",
+  ".flac": "audio/flac",
+  ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
+};
+
 function registerAssetProtocol() {
-  protocol.handle("rawmotion-asset", (request) => {
+  protocol.handle("rawmotion-asset", async (request) => {
     try {
       const { pathname } = new URL(request.url);
       const segments = pathname.split("/").filter(Boolean).map(decodeURIComponent);
@@ -56,7 +79,49 @@ function registerAssetProtocol() {
       // resolveProjectDir + resolveInProject are the sandbox - a crafted URL
       // cannot escape the workspace any more than an IPC call can.
       const abs = resolveInProject(resolveProjectDir(dirName), rest.join("/"));
-      return net.fetch(pathToFileURL(abs).href);
+
+      // Served by hand rather than proxied through `net.fetch(file://...)`,
+      // because that proxy answers every request with a full-body 200 and
+      // drops the Range header. Media elements *depend* on ranges: every
+      // timeline scrub and every trimmed clip's `startFrom` issues one, and
+      // an unanswered range leaves the <audio> element stalled forever -
+      // which presented as "audio hangs when I click around the timeline".
+      const stat = await fsp.stat(abs);
+      const type = ASSET_MIME[path.extname(abs).toLowerCase()] ?? "application/octet-stream";
+      const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("Range") ?? "");
+
+      if (range && (range[1] !== "" || range[2] !== "")) {
+        // "bytes=a-b", "bytes=a-" or "bytes=-n" (a suffix of n bytes).
+        const start = range[1] === "" ? Math.max(0, stat.size - Number(range[2])) : Number(range[1]);
+        const end =
+          range[1] !== "" && range[2] !== ""
+            ? Math.min(Number(range[2]), stat.size - 1)
+            : stat.size - 1;
+        if (start >= stat.size || start > end) {
+          return new Response(null, {
+            status: 416,
+            headers: { "Content-Range": `bytes */${stat.size}` },
+          });
+        }
+        return new Response(Readable.toWeb(fs.createReadStream(abs, { start, end })), {
+          status: 206,
+          headers: {
+            "Content-Type": type,
+            "Content-Length": String(end - start + 1),
+            "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+            "Accept-Ranges": "bytes",
+          },
+        });
+      }
+
+      return new Response(Readable.toWeb(fs.createReadStream(abs)), {
+        status: 200,
+        headers: {
+          "Content-Type": type,
+          "Content-Length": String(stat.size),
+          "Accept-Ranges": "bytes",
+        },
+      });
     } catch (error) {
       return new Response(`Asset not found: ${error.message}`, { status: 404 });
     }
