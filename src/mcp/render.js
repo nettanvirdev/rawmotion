@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Rendering for the MCP server.
  *
  * Separate from `src/main/render/queue.js` because the two have genuinely
@@ -18,30 +18,45 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { normalizeProject, projectDurationInFrames } from "../shared/project.js";
 
-/** Bundling costs seconds and the result is identical for every call. */
-let bundlePromise = null;
+/**
+ * Bundling costs seconds, so bundles are cached - but per *project*, not per
+ * process: the project's `assets/` directory is the bundle's public dir, and
+ * that is how `staticFile("images/x.png")` in the composition finds the
+ * project's media. One shared bundle would serve every project the first
+ * project's assets.
+ *
+ * @type {Map<string, Promise<string>>}
+ */
+const bundlePromises = new Map();
 
 /**
- * Webpack-bundle the Remotion entry once per process.
+ * Webpack-bundle the Remotion entry once per project directory.
  *
+ * @param {string} [projectDir] Absolute project directory. Omitted = no assets.
  * @returns {Promise<string>} Serve URL.
  */
-export function getBundle() {
-  if (bundlePromise) return bundlePromise;
+export function getBundle(projectDir) {
+  const key = projectDir ?? "";
+  const cached = bundlePromises.get(key);
+  if (cached) return cached;
 
-  bundlePromise = (async () => {
+  const promise = (async () => {
     const { bundle } = await import("@remotion/bundler");
     // fileURLToPath, not `.pathname`: on Windows the latter yields "/C:/..."
     const entryPoint = fileURLToPath(new URL("../remotion/entry.tsx", import.meta.url));
-    return bundle({ entryPoint });
+    return bundle({
+      entryPoint,
+      ...(projectDir ? { publicDir: path.join(projectDir, "assets") } : {}),
+    });
   })();
 
+  bundlePromises.set(key, promise);
   // A failed bundle must not be cached, or every later call in the session
   // replays the same error without retrying.
-  bundlePromise.catch(() => {
-    bundlePromise = null;
+  promise.catch(() => {
+    bundlePromises.delete(key);
   });
-  return bundlePromise;
+  return promise;
 }
 
 /**
@@ -52,9 +67,25 @@ function browserExecutable() {
   return process.env.RAWMOTION_CHROME || null;
 }
 
-async function composition(project) {
+/**
+ * GPU compositing for the headless browser.
+ *
+ * The server has no Electron, so it cannot ask the OS what GPU exists; it
+ * defaults to the platform's native GPU API (ANGLE) on desktop OSes, where a
+ * missing GPU degrades gracefully, and to SwiftShader on Linux, where a
+ * headless box is the common case. `RAWMOTION_GL` overrides both
+ * (`angle` | `swangle` | `vulkan`).
+ */
+function chromiumOptions() {
+  const gl =
+    process.env.RAWMOTION_GL ||
+    (process.platform === "linux" ? "swangle" : "angle");
+  return { gl, enableMultiProcessOnLinux: true };
+}
+
+async function composition(project, projectDir) {
   const { selectComposition } = await import("@remotion/renderer");
-  const serveUrl = await getBundle();
+  const serveUrl = await getBundle(projectDir);
   const inputProps = { project };
 
   const comp = await selectComposition({
@@ -62,6 +93,7 @@ async function composition(project) {
     id: "RawMotion",
     inputProps,
     browserExecutable: browserExecutable(),
+    chromiumOptions: chromiumOptions(),
   });
   return { comp, serveUrl, inputProps };
 }
@@ -81,7 +113,7 @@ async function composition(project) {
  * @param {number} [options.scale] 0.1..1
  * @returns {Promise<{ path: string, frame: number, width: number, height: number }>}
  */
-export async function renderFrame({ project, frame, outputPath, scale = 0.5 }) {
+export async function renderFrame({ project, frame, outputPath, scale = 0.5, projectDir }) {
   const { renderStill } = await import("@remotion/renderer");
   const normalized = normalizeProject(project);
   const total = projectDurationInFrames(normalized);
@@ -90,7 +122,7 @@ export async function renderFrame({ project, frame, outputPath, scale = 0.5 }) {
   // project wants to see the end, and failing the call teaches it nothing.
   const target = Math.max(0, Math.min(total - 1, Math.round(frame)));
 
-  const { comp, serveUrl, inputProps } = await composition(normalized);
+  const { comp, serveUrl, inputProps } = await composition(normalized, projectDir);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
   await renderStill({
@@ -101,6 +133,7 @@ export async function renderFrame({ project, frame, outputPath, scale = 0.5 }) {
     inputProps,
     scale: Math.max(0.1, Math.min(1, scale)),
     browserExecutable: browserExecutable(),
+    chromiumOptions: chromiumOptions(),
     overwrite: true,
   });
 
@@ -126,13 +159,13 @@ export async function renderFrame({ project, frame, outputPath, scale = 0.5 }) {
  * @param {string} options.outputDir
  * @param {number} [options.scale]
  */
-export async function renderContactSheet({ project, outputDir, scale = 0.3 }) {
+export async function renderContactSheet({ project, outputDir, scale = 0.3, projectDir }) {
   const { renderStill } = await import("@remotion/renderer");
   const normalized = normalizeProject(project);
   const { sceneTimings } = await import("../shared/project.js");
   const timings = sceneTimings(normalized);
 
-  const { comp, serveUrl, inputProps } = await composition(normalized);
+  const { comp, serveUrl, inputProps } = await composition(normalized, projectDir);
   await fs.mkdir(outputDir, { recursive: true });
 
   const shots = [];
@@ -153,6 +186,7 @@ export async function renderContactSheet({ project, outputDir, scale = 0.3 }) {
       inputProps,
       scale: Math.max(0.1, Math.min(1, scale)),
       browserExecutable: browserExecutable(),
+      chromiumOptions: chromiumOptions(),
       overwrite: true,
     });
 
@@ -188,11 +222,12 @@ export async function renderVideo({
   format = "mp4",
   scale = 1,
   crf = 20,
+  projectDir,
   onProgress,
 }) {
   const { renderMedia } = await import("@remotion/renderer");
   const normalized = normalizeProject(project);
-  const { comp, serveUrl, inputProps } = await composition(normalized);
+  const { comp, serveUrl, inputProps } = await composition(normalized, projectDir);
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
@@ -207,6 +242,7 @@ export async function renderVideo({
     outputLocation: outputPath,
     inputProps,
     browserExecutable: browserExecutable(),
+    chromiumOptions: chromiumOptions(),
     onProgress: onProgress
       ? ({ renderedFrames }) =>
           onProgress({ renderedFrames, totalFrames: comp.durationInFrames })

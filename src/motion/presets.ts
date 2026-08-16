@@ -11,7 +11,7 @@
  * trivially testable and identical in preview and final render.
  */
 
-import { EASINGS, SPRINGS, mix, progress, springProgress } from "./timing";
+import { EASINGS, SPRINGS, mix, progress, seededRandom, springProgress } from "./timing";
 
 /** The additive result of a preset at a given frame. */
 export interface MotionDelta {
@@ -144,6 +144,144 @@ const PRESETS: Record<string, { label: string; group: string; fn: PresetFn; defa
       y: mix(t, distance, 0),
       rotate: mix(t, -2.5, 0),
       scale: mix(t, 0.96, 1),
+    }),
+  },
+
+  /* ---- energy: fast arrivals with implied motion blur ---- */
+
+  /**
+   * Pop with a controlled overshoot. The sine term peaks mid-travel and
+   * returns to exactly 1, so the overshoot can never leave a layer parked
+   * off its final size - the classic failure of raw `outBack` on an exit.
+   */
+  popIn: {
+    label: "Pop",
+    group: "Energy",
+    fn: (t) => ({
+      opacity: Math.min(1, t * 1.6),
+      scale: mix(t, 0.65, 1) + Math.sin(t * Math.PI) * 0.06,
+    }),
+  },
+
+  /** Horizontal whip with motion blur. Reads as a camera snap. */
+  whipLeft: {
+    label: "Whip from right",
+    group: "Energy",
+    defaultDistance: 260,
+    fn: (t, { distance }) => ({
+      opacity: Math.min(1, t * 1.5),
+      x: mix(t, distance, 0),
+      blur: (1 - t) * 14,
+    }),
+  },
+
+  whipRight: {
+    label: "Whip from left",
+    group: "Energy",
+    defaultDistance: 260,
+    fn: (t, { distance }) => ({
+      opacity: Math.min(1, t * 1.5),
+      x: mix(t, -distance, 0),
+      blur: (1 - t) * 14,
+    }),
+  },
+
+  /** Crash zoom: arrives from far too close, resolving out of blur. */
+  zoomBlur: {
+    label: "Crash zoom",
+    group: "Energy",
+    fn: (t) => ({
+      opacity: Math.min(1, t * 1.4),
+      scale: mix(t, 1.45, 1),
+      blur: (1 - t) * 22,
+    }),
+  },
+
+  /**
+   * Deterministic glitch: position and opacity jitter in 2-frame steps that
+   * settle as `t` rises. Seeded from the quantised frame, so the preview and
+   * the render produce byte-identical jitter.
+   */
+  glitchIn: {
+    label: "Glitch",
+    group: "Energy",
+    defaultDistance: 18,
+    fn: (t, { frame, distance }) => {
+      const step = Math.floor(frame / 2);
+      const jitter = (1 - t) * distance;
+      return {
+        opacity: t * (t < 0.95 && seededRandom(step + 7) < 0.18 ? 0.35 : 1),
+        x: (seededRandom(step) - 0.5) * 2 * jitter,
+        y: (seededRandom(step + 3) - 0.5) * jitter,
+      };
+    },
+  },
+
+  /* ---- organic: flowing, physical arrivals ---- */
+
+  /**
+   * Float up and keep breathing. The bob is a function of the running frame,
+   * scaled by `t` so it fades in with the layer and unwinds on exit.
+   */
+  floatIn: {
+    label: "Float",
+    group: "Organic",
+    defaultDistance: 56,
+    fn: (t, { frame, fps, distance }) => ({
+      opacity: t,
+      y: mix(t, distance, 0) + Math.sin((frame / (fps * 1.8)) * Math.PI * 2) * 7 * t,
+      rotate: Math.sin((frame / (fps * 2.6)) * Math.PI * 2) * 0.6 * t,
+    }),
+  },
+
+  /** Lateral drift on a water-like sway. For logos and hero imagery. */
+  waveIn: {
+    label: "Wave",
+    group: "Organic",
+    defaultDistance: 90,
+    fn: (t, { frame, fps, distance }) => ({
+      opacity: t,
+      x: mix(t, -distance, 0) + Math.sin((frame / (fps * 2.2)) * Math.PI * 2) * 9 * t,
+      y: Math.cos((frame / (fps * 1.7)) * Math.PI * 2) * 5 * t,
+    }),
+  },
+
+  /** Swing in from a corner on a decaying pendulum. */
+  swingIn: {
+    label: "Swing",
+    group: "Organic",
+    defaultDistance: 80,
+    fn: (t, { distance }) => ({
+      opacity: t,
+      x: mix(t, -distance, 0),
+      rotate: Math.sin(t * Math.PI * 1.5) * (1 - t) * 10,
+    }),
+  },
+
+  /** Arc travel - enters along a curve rather than a straight line. */
+  orbitIn: {
+    label: "Orbit",
+    group: "Organic",
+    defaultDistance: 140,
+    fn: (t, { distance }) => ({
+      opacity: t,
+      x: (1 - t) * distance,
+      y: -Math.sin(t * Math.PI) * distance * 0.3,
+      rotate: mix(t, -5, 0),
+      scale: mix(t, 0.94, 1),
+    }),
+  },
+
+  /** Card flip settling flat. Pairs with `ProductCard` and device mockups. */
+  flipIn: {
+    label: "Flip",
+    group: "Organic",
+    defaultDistance: 36,
+    fn: (t, { distance }) => ({
+      opacity: Math.min(1, t * 1.3),
+      y: mix(t, distance, 0),
+      rotate: mix(t, -7, 0),
+      scale: mix(t, 0.9, 1),
     }),
   },
 };

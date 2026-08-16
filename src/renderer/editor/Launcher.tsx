@@ -8,11 +8,12 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, FolderOpen, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, FolderOpen, Loader2, Plus, Settings } from "lucide-react";
 import { COMPOSITION_PRESETS } from "@shared/project.js";
 import { TEMPLATES } from "@shared/templates.js";
 import { bridge, errorMessage, type ProjectSummary } from "@/lib/bridge";
 import { BrandMark } from "@/components/ui/brand-mark";
+import { SettingsModal } from "./SettingsModal";
 import { cn } from "@/lib/utils";
 
 export const Launcher: React.FC<{
@@ -22,8 +23,9 @@ export const Launcher: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  useEffect(() => {
+  const refresh = () => {
     bridge.workspace
       .list()
       .then(setProjects)
@@ -31,7 +33,9 @@ export const Launcher: React.FC<{
         setProjects([]);
         setError(errorMessage(e));
       });
-  }, []);
+  };
+
+  useEffect(refresh, []);
 
   const open = async (dirName: string) => {
     setBusy(true);
@@ -45,19 +49,20 @@ export const Launcher: React.FC<{
     }
   };
 
-  const create = async (templateId: string, name: string, presetId: string) => {
+  const create = async (
+    templateId: string,
+    name: string,
+    composition: { width: number; height: number; fps: number },
+  ) => {
     setBusy(true);
     setError(null);
     try {
       const template = TEMPLATES.find((t) => t.id === templateId) ?? TEMPLATES[0];
-      const preset = COMPOSITION_PRESETS.find((p) => p.id === presetId);
       const built = template.build();
 
       const result = await bridge.project.create({
         name,
-        composition: preset
-          ? { width: preset.width, height: preset.height, fps: preset.fps }
-          : built.composition,
+        composition,
         scenes: built.scenes,
       });
       onOpened(result.dirName, result.project);
@@ -127,11 +132,22 @@ export const Launcher: React.FC<{
               </button>
               <button
                 type="button"
-                onClick={() => void bridge.workspace.reveal()}
+                onClick={() =>
+                  void bridge.workspace.reveal().catch((e) => setError(errorMessage(e)))
+                }
                 className="flex h-9 items-center gap-2 rounded-[7px] bg-[var(--rm-chrome)] px-3.5 text-[13px] text-[var(--rm-text-dim)] transition-colors duration-100 hover:text-[var(--rm-text)]"
               >
                 <FolderOpen className="size-4" />
                 Open workspace folder
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                title="Settings"
+                className="flex h-9 items-center gap-2 rounded-[7px] bg-[var(--rm-chrome)] px-3.5 text-[13px] text-[var(--rm-text-dim)] transition-colors duration-100 hover:text-[var(--rm-text)]"
+              >
+                <Settings className="size-4" />
+                Settings
               </button>
             </div>
           )}
@@ -185,6 +201,13 @@ export const Launcher: React.FC<{
           </section>
         </div>
       </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        canChangeWorkspace
+        onWorkspaceChanged={refresh}
+      />
     </div>
   );
 };
@@ -192,18 +215,42 @@ export const Launcher: React.FC<{
 const NewProjectForm: React.FC<{
   busy: boolean;
   onCancel: () => void;
-  onCreate: (templateId: string, name: string, presetId: string) => void;
+  onCreate: (
+    templateId: string,
+    name: string,
+    composition: { width: number; height: number; fps: number },
+  ) => void;
 }> = ({ busy, onCancel, onCreate }) => {
   const [name, setName] = useState("Untitled");
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
-  const [presetId, setPresetId] = useState(COMPOSITION_PRESETS[0].id);
+  const [presetId, setPresetId] = useState<string | null>(COMPOSITION_PRESETS[0].id);
+  // The presets are conveniences: clicking one fills these fields, and the
+  // fields stay editable so any resolution or frame rate - 120fps included -
+  // is one keystroke away rather than a missing preset.
+  const [width, setWidth] = useState(COMPOSITION_PRESETS[0].width);
+  const [height, setHeight] = useState(COMPOSITION_PRESETS[0].height);
+  const [fps, setFps] = useState(COMPOSITION_PRESETS[0].fps);
+
+  const applyPreset = (preset: (typeof COMPOSITION_PRESETS)[number]) => {
+    setPresetId(preset.id);
+    setWidth(preset.width);
+    setHeight(preset.height);
+    setFps(preset.fps);
+  };
+
+  const clampDim = (n: number) => Math.max(16, Math.min(7680, Math.round(n) || 16));
+  const clampFps = (n: number) => Math.max(1, Math.min(240, Math.round(n) || 30));
 
   return (
     <form
-      className="mt-8 rounded-[10px] bg-[var(--rm-chrome)] p-4"
+      className="mt-8 rounded-[14px] bg-[var(--rm-chrome)] p-4 shadow-[0_16px_40px_-16px_rgb(0_0_0/0.5)]"
       onSubmit={(e) => {
         e.preventDefault();
-        onCreate(templateId, name.trim() || "Untitled", presetId);
+        onCreate(templateId, name.trim() || "Untitled", {
+          width: clampDim(width),
+          height: clampDim(height),
+          fps: clampFps(fps),
+        });
       }}
     >
       <label className="block">
@@ -228,7 +275,7 @@ const NewProjectForm: React.FC<{
             className={cn(
               "rounded-[8px] p-3 text-left transition-colors duration-100",
               templateId === template.id
-                ? "bg-[var(--rm-accent-dim)] ring-1 ring-[var(--rm-accent)]"
+                ? "bg-[var(--rm-accent-dim)] shadow-[0_8px_24px_-10px_oklch(0.72_0.16_275/0.45)]"
                 : "bg-[var(--rm-chrome-high)] hover:bg-[color-mix(in_oklch,var(--rm-chrome-high),white_4%)]",
             )}
           >
@@ -245,7 +292,7 @@ const NewProjectForm: React.FC<{
           <button
             key={preset.id}
             type="button"
-            onClick={() => setPresetId(preset.id)}
+            onClick={() => applyPreset(preset)}
             className={cn(
               "rounded-full px-2.5 py-1 text-[11px] transition-colors duration-100",
               presetId === preset.id
@@ -255,6 +302,31 @@ const NewProjectForm: React.FC<{
           >
             {preset.hint}
           </button>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {(
+          [
+            { label: "Width", value: width, set: setWidth },
+            { label: "Height", value: height, set: setHeight },
+            { label: "FPS", value: fps, set: setFps },
+          ] as const
+        ).map((field) => (
+          <label key={field.label} className="block">
+            <span className="text-[10px] uppercase tracking-[0.14em] text-[var(--rm-text-faint)]">
+              {field.label}
+            </span>
+            <input
+              type="number"
+              value={field.value}
+              onChange={(e) => {
+                field.set(Number(e.target.value));
+                setPresetId(null);
+              }}
+              className="rm-num mt-1 h-8 w-full rounded-[6px] bg-[var(--rm-chrome-high)] px-2 text-[12px] text-[var(--rm-text)] outline-none focus:ring-1 focus:ring-[var(--rm-accent)]"
+            />
+          </label>
         ))}
       </div>
 

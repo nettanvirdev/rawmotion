@@ -39,6 +39,7 @@ import path from "node:path";
 import {
   COMPOSITION_PRESETS,
   LAYER_TYPES,
+  TRANSITION_TYPES,
   createScene,
   findLayer,
   formatTimecode,
@@ -166,7 +167,7 @@ server.tool(
       components: COMPONENT_SPECS,
       backgroundKinds: Object.keys(BACKGROUND_REGISTRY),
       animationPresets: PRESET_NAMES,
-      transitions: ["none", "fade", "blur", "slide", "wipe"],
+      transitions: TRANSITION_TYPES,
       cameraMoves: ["none", "push", "pull", "pan"],
       compositionPresets: COMPOSITION_PRESETS,
       templates: TEMPLATES.map((t) => ({ id: t.id, label: t.label, description: t.description })),
@@ -355,7 +356,7 @@ const cameraSchema = z
 
 const transitionSchema = z
   .object({
-    type: z.enum(["none", "fade", "blur", "slide", "wipe"]),
+    type: z.enum(TRANSITION_TYPES),
     durationInFrames: z.number().int().describe("Frames of overlap with the NEXT scene."),
   })
   .optional();
@@ -804,7 +805,7 @@ server.tool(
   tool(async ({ dirName, frame, scale = 0.5 }) => {
     const { project, dir } = await load(dirName);
     const out = resolveInProject(dir, `cache/frame-${frame}.png`);
-    const result = await renderFrame({ project, frame, outputPath: out, scale });
+    const result = await renderFrame({ project, frame, outputPath: out, scale, projectDir: dir });
 
     return image(
       result.path,
@@ -826,7 +827,7 @@ server.tool(
   tool(async ({ dirName, scale = 0.3 }) => {
     const { project, dir } = await load(dirName);
     const outputDir = resolveInProject(dir, "cache/contact");
-    const shots = await renderContactSheet({ project, outputDir, scale });
+    const shots = await renderContactSheet({ project, outputDir, scale, projectDir: dir });
 
     const content = [
       {
@@ -873,6 +874,7 @@ server.tool(
       format,
       scale,
       crf,
+      projectDir: dir,
       label: project.name,
     });
 

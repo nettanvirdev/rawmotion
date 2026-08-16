@@ -25,6 +25,10 @@ export const CHANNELS = {
   WORKSPACE_LIST: "workspace:list",
   WORKSPACE_REVEAL: "workspace:reveal",
 
+  SETTINGS_GET: "settings:get",
+  SETTINGS_UPDATE: "settings:update",
+  SETTINGS_CHOOSE_WORKSPACE: "settings:choose-workspace",
+
   PROJECT_CREATE: "project:create",
   PROJECT_OPEN: "project:open",
   PROJECT_SAVE: "project:save",

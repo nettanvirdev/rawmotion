@@ -52,6 +52,24 @@ export const ASSET_KINDS = /** @type {const} */ ([
 ]);
 
 /**
+ * Scene transition types. One list, shared by the renderer's switch, the
+ * inspector's picker, the normaliser and the MCP schema - a transition can
+ * only exist by being added here first.
+ */
+export const TRANSITION_TYPES = /** @type {const} */ ([
+  "none",
+  "fade",
+  "wipe",
+  "slide",
+  "blur",
+  "zoom",
+  "push",
+  "circle",
+  "spin",
+  "glitch",
+]);
+
+/**
  * Composition presets. These are conveniences in the UI only - the model
  * stores raw width/height/fps, so any dimensions are valid and a project is
  * never coupled to a preset.
@@ -62,6 +80,8 @@ export const COMPOSITION_PRESETS = [
   { id: "square-1080", label: "Square", hint: "1080 x 1080", width: 1080, height: 1080, fps: 30 },
   { id: "landscape-4k", label: "Landscape 4K", hint: "3840 x 2160", width: 3840, height: 2160, fps: 30 },
   { id: "cinema-24", label: "Cinematic", hint: "1920 x 1080 - 24fps", width: 1920, height: 1080, fps: 24 },
+  { id: "smooth-60", label: "Smooth", hint: "1920 x 1080 - 60fps", width: 1920, height: 1080, fps: 60 },
+  { id: "high-120", label: "High frame rate", hint: "1920 x 1080 - 120fps", width: 1920, height: 1080, fps: 120 },
 ];
 
 /**
@@ -113,7 +133,7 @@ export const COMPOSITION_PRESETS = [
 
 /**
  * @typedef {object} Transition
- * @property {"none"|"fade"|"wipe"|"slide"|"blur"} type
+ * @property {typeof TRANSITION_TYPES[number]} type
  * @property {number} durationInFrames  Overlap with the following scene.
  */
 
@@ -428,11 +448,7 @@ function normalizeScene(raw, index) {
       amount: num(scene.camera?.amount, 0.06),
     },
     transition: {
-      type: oneOf(
-        scene.transition?.type,
-        ["none", "fade", "wipe", "slide", "blur"],
-        "none",
-      ),
+      type: oneOf(scene.transition?.type, TRANSITION_TYPES, "none"),
       durationInFrames: clampInt(scene.transition?.durationInFrames, 0, 0) ?? 0,
     },
     layers: asArray(scene.layers).map(normalizeLayer),

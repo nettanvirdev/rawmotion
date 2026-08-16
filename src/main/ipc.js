@@ -39,8 +39,11 @@ import {
   resolveInProject,
   resolveProjectDir,
   revealInFileManager,
+  setWorkspaceRoot,
   workspaceRoot,
 } from "./workspace.js";
+import { getSettings, settingsPath, updateSettings } from "./settings.js";
+import { cpuInfo, detectGpu } from "./gpu.js";
 
 /**
  * The currently open project. The main process tracks this so the watcher
@@ -102,6 +105,45 @@ export function registerIpc(getWindow) {
     const target = dirName ? resolveProjectDir(dirName) : workspaceRoot();
     await revealInFileManager(target);
     return true;
+  });
+
+  /* ---------------- settings ---------------- */
+
+  // One payload shape for all three handlers, so the settings UI has a single
+  // source of truth to render from.
+  const settingsPayload = async () => ({
+    settings: getSettings(),
+    paths: {
+      settingsFile: settingsPath(),
+      workspace: workspaceRoot(),
+      userData: app.getPath("userData"),
+    },
+    gpu: await detectGpu(),
+    cpu: cpuInfo(),
+  });
+
+  handle(CHANNELS.SETTINGS_GET, () => settingsPayload());
+
+  handle(CHANNELS.SETTINGS_UPDATE, async (_e, patch) => {
+    updateSettings(patch && typeof patch === "object" ? patch : {});
+    return settingsPayload();
+  });
+
+  handle(CHANNELS.SETTINGS_CHOOSE_WORKSPACE, async () => {
+    if (openProject) {
+      throw new Error("Close the open project before moving the workspace");
+    }
+    const win = getWindow();
+    const result = await dialog.showOpenDialog(win ?? undefined, {
+      title: "Choose where projects are stored",
+      defaultPath: workspaceRoot(),
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (result.canceled || !result.filePaths.length) {
+      return { canceled: true, ...(await settingsPayload()) };
+    }
+    await setWorkspaceRoot(result.filePaths[0]);
+    return { canceled: false, ...(await settingsPayload()) };
   });
 
   handle(CHANNELS.PROJECT_CREATE, async (_e, options) => {
@@ -203,7 +245,7 @@ export function registerIpc(getWindow) {
 
   onQueueChange((queue) => send(EVENTS.RENDER_PROGRESS, queue));
 
-  handle(CHANNELS.RENDER_ENQUEUE, (_e, { dirName, project, label, format, width, height }) => {
+  handle(CHANNELS.RENDER_ENQUEUE, (_e, { dirName, project, label, format, width, height, scale, quality }) => {
     const dir = resolveProjectDir(String(dirName));
     return enqueueRender({
       projectDirName: String(dirName),
@@ -213,6 +255,8 @@ export function registerIpc(getWindow) {
       format,
       width,
       height,
+      scale: typeof scale === "number" && scale > 0 && scale <= 4 ? scale : 1,
+      quality: ["draft", "standard", "high"].includes(quality) ? quality : undefined,
     });
   });
 

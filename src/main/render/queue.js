@@ -25,6 +25,8 @@ import { fileURLToPath } from "node:url";
 import { createId } from "../../shared/ids.js";
 import { projectDurationInFrames } from "../../shared/project.js";
 import { resolveInProject } from "../workspace.js";
+import { getSettings } from "../settings.js";
+import { detectGpu } from "../gpu.js";
 
 /**
  * @typedef {"queued"|"bundling"|"rendering"|"done"|"failed"|"cancelled"} JobStatus
@@ -112,6 +114,8 @@ export function enqueue({
   format = "mp4",
   width,
   height,
+  scale = 1,
+  quality,
 }) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const safeName = project.name.replace(/[^\w -]+/g, "").trim() || "render";
@@ -130,9 +134,10 @@ export function enqueue({
     outputPath: resolveInProject(projectDir, outputRelative),
     outputRelative,
     format,
-    width: width ?? project.composition.width,
-    height: height ?? project.composition.height,
+    width: Math.round((width ?? project.composition.width) * scale),
+    height: Math.round((height ?? project.composition.height) * scale),
     fps: project.composition.fps,
+    quality: quality ?? getSettings().render.quality,
     error: null,
     queuedAt: new Date().toISOString(),
     startedAt: null,
@@ -232,6 +237,9 @@ async function runJob(job) {
     const { cancelSignal, cancel: trigger } = makeCancelSignal();
     cancellers.set(job.id, trigger);
 
+    const accel = await accelerationOptions();
+    const tuning = QUALITY[job.quality] ?? QUALITY.standard;
+
     await renderMedia({
       composition: {
         ...composition,
@@ -240,10 +248,12 @@ async function runJob(job) {
       },
       serveUrl,
       codec: job.format === "webm" ? "vp8" : "h264",
+      ...(job.format === "webm" ? {} : { crf: tuning.crf, x264Preset: tuning.x264Preset }),
       outputLocation: job.outputPath,
       inputProps,
       cancelSignal,
       browserExecutable: browserExecutable(),
+      ...accel,
       // Progress arrives per frame; throttle the IPC chatter to whole
       // percentage points or a long render floods the renderer with events.
       onProgress: ({ renderedFrames }) => {
@@ -297,6 +307,10 @@ function getBundle(projectDir) {
     );
     return bundle({
       entryPoint: entry,
+      // The project's assets folder is the bundle's public dir - this is how
+      // `staticFile("images/x.png")` inside the composition reaches the
+      // project's media (and why the cache is keyed per project directory).
+      publicDir: path.join(projectDir, "assets"),
       // Compositions are styled inline precisely so that the render bundle
       // needs no CSS pipeline - see the note in src/motion/README.md.
       webpackOverride: (config) => config,
@@ -308,6 +322,52 @@ function getBundle(projectDir) {
   // session replays the same error without retrying.
   promise.catch(() => bundleCache.delete(projectDir));
   return promise;
+}
+
+/**
+ * Encoder tuning per quality level.
+ *
+ * `draft` exists for iteration - a director checking timing does not need a
+ * visually lossless file. `high` is for the final master.
+ */
+const QUALITY = {
+  draft: { crf: 28, x264Preset: "veryfast" },
+  standard: { crf: 20, x264Preset: "medium" },
+  high: { crf: 16, x264Preset: "slow" },
+};
+
+/**
+ * Hardware options for `renderMedia`, derived from settings + detection.
+ *
+ * Three levers, applied together:
+ *
+ *  - `chromiumOptions.gl`: which OpenGL implementation the headless browser
+ *    composites with. `"angle"` maps to the platform's native GPU API
+ *    (D3D11 on Windows, Metal on macOS); `"swangle"` is SwiftShader -
+ *    correct everywhere but strictly CPU-bound. This is where "rendering
+ *    uses no GPU at all" came from: the headless shell defaults to software.
+ *  - `hardwareAcceleration: "if-possible"`: lets the encoder use a hardware
+ *    codec where Remotion supports one, falling back to x264 silently.
+ *  - `concurrency`: how many browser tabs walk frames in parallel. Remotion's
+ *    default is half the cores; users with many cores can raise it in
+ *    settings.
+ */
+async function accelerationOptions() {
+  const { gpu: mode, concurrency } = getSettings().render;
+  const gpu = await detectGpu();
+
+  const useGpu = mode === "on" || (mode === "auto" && gpu.available);
+
+  return {
+    chromiumOptions: {
+      gl: useGpu ? "angle" : "swangle",
+      // Multi-process compositing is what actually lets ANGLE reach the
+      // driver on Linux; harmless elsewhere.
+      enableMultiProcessOnLinux: true,
+    },
+    hardwareAcceleration: useGpu ? "if-possible" : "disable",
+    ...(concurrency ? { concurrency } : {}),
+  };
 }
 
 /**

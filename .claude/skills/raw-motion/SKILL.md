@@ -101,9 +101,24 @@ wrong; usually the right answer is a different cell.
   Static frames are for the outro.
 - Use `depthIn` for hero objects, `riseFade` for text, `fade` for backgrounds
   and supporting elements. Do not use a different preset for every layer.
+- The **Energy** presets (`popIn`, `whipLeft`/`whipRight`, `zoomBlur`,
+  `glitchIn`) are for accents - a stat popping, a badge landing, a beat drop.
+  One or two per film. A whole video of whips is a lyric-video template.
+- The **Organic** presets (`floatIn`, `waveIn`, `swingIn`, `orbitIn`,
+  `flipIn`) keep moving subtly after arrival - use them for hero imagery,
+  logos and product art that must feel alive during a long hold. `floatIn`
+  on a device mockup is the Apple-ad look.
 - Transitions: `fade` 15-20 frames between related scenes, `blur` for a
-  change of subject, `none` before an outro. Remember a transition *overlaps*
-  the scenes, so it shortens the film.
+  change of subject, `zoom` for a product-film cut, `push` for lateral
+  narrative movement ("meanwhile"), `circle` for a big reveal, `spin` and
+  `glitch` only on high-energy pieces, `none` before an outro. Remember a
+  transition *overlaps* the scenes, so it shortens the film.
+- "Morph" moments (a pen becoming a sugarcane, an icon becoming a product):
+  the engine does not interpolate SVG paths, so build it as a **crossfade in
+  motion** - both layers share the same layout cell, the outgoing layer exits
+  with `zoomBlur` while the incoming one enters with `zoomBlur` over the same
+  12-16 frames, on a `push` camera. At speed, with blur covering the swap,
+  it reads as a transformation.
 
 **Theme - set it, do not hand-colour**
 
@@ -131,6 +146,21 @@ work. Fine-tune a backdrop through `set_theme`'s `backdrop` argument - `hue`,
 - One accent colour for the whole video, and it comes from the theme.
 - No more than 4 layers in a scene beyond the background.
 - Never animate something that does not need to move.
+
+**Surfaces - no borders**
+
+Panels, cards and plates in a composition follow the same rule as the app's
+own UI: **no borders or strokes**. A 1px outline around a card is the
+fastest way to make motion graphics look like a slide deck. Separation comes
+from surface contrast, a soft shadow (wide blur, low alpha - never a hard
+drop), and generous corner radii (16-42px on cards; small radii read as
+spreadsheet cells). Shape layers: keep `strokeWidth: 0` and use `fill` with
+low `fillOpacity` for plates.
+
+The one sanctioned exception is an **animated** edge - an aurora sweep or
+specular highlight travelling around a hero card (what `GlassCard` does with
+its specular edge). Light moving along an edge is lighting; a static stroke
+is a border. If it does not move, it does not ship.
 
 ## Composing scenes
 
@@ -198,11 +228,43 @@ When the request is "make a video explaining X" about real code:
 Do not put more than ~16 lines of code on screen at once, and size it so the
 lines do not run off the panel - roughly `width >= code_columns * fontSize * 0.62`.
 
-## Aspect ratios
+## Aspect ratios and frame rate
 
 `1920x1080` landscape, `1080x1920` vertical, `1080x1080` square. For vertical,
 stack everything and reduce type by about 15% - a 118px headline that works
 in landscape wraps badly at 1080 wide.
+
+`fps` is free to set at `create_project` / `set_composition` - 24 for
+cinematic, 30 default, 60/120 for silky product motion. **All timing rules
+above are stated at 30fps; scale frame counts with the rate** (a 24-frame
+entrance at 30fps is a 96-frame entrance at 120fps). Render time scales
+linearly with frame count, so quote 4x the wait for 120fps.
+
+## Audio
+
+Audio lives **inside the project's data folder** - `assets/audio/` - never
+referenced from an outside path. Copy any narration, music bed or SFX in
+with `import_asset` first (it lands in `assets/audio/` and registers in the
+asset list), then place it with `add_audio`. That keeps the project folder
+self-contained: it can be zipped, moved or opened on another machine and
+every clip still resolves. Reuse is free - once a track is in the data
+folder, several clips can reference the same `src` with different trims.
+
+Mixing defaults that read as designed: music bed at `volume` 0.25-0.4 with
+`fadeIn`/`fadeOut` of 30-60 frames, voice at 0.9-1.0, SFX hits at 0.6-0.8
+placed to land exactly on the frame their visual counterpart arrives.
+
+## Product art
+
+For a product ad (a phone, a watch, an app icon) do not hunt for PNGs first.
+Draw a **pixel-perfect SVG** of the product with `write_file` into the
+project's `assets/images/`, register it with `import_asset`, and use it as an
+`image` layer - SVG scales losslessly to 4K, inherits nothing, and renders
+identically in preview and export. Build it like a designer: one master
+silhouette, large corner radii, layered soft gradients for body/screen/glass,
+no strokes. Only reach for internet imagery when the subject genuinely
+cannot be drawn (a photograph, a real screenshot), and then prefer clean
+transparent PNGs.
 
 ## Rendering
 

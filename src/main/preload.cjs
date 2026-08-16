@@ -51,6 +51,13 @@ contextBridge.exposeInMainWorld("rawmotion", {
     reveal: (dirName) => ipcRenderer.invoke("workspace:reveal", dirName),
   },
 
+  /* ---- settings ---- */
+  settings: {
+    get: () => ipcRenderer.invoke("settings:get"),
+    update: (patch) => ipcRenderer.invoke("settings:update", patch),
+    chooseWorkspace: () => ipcRenderer.invoke("settings:choose-workspace"),
+  },
+
   project: {
     create: (options) => ipcRenderer.invoke("project:create", options),
     open: (dirName) => ipcRenderer.invoke("project:open", dirName),

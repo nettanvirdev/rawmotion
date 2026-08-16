@@ -530,17 +530,17 @@
   font-feature-settings: "cv02", "cv03", "cv04";
 }
 
-/* Panels separate by a hairline rather than by shadow. In a dark editor a
- * drop shadow between two dark panels is invisible, so the document
- * system's no-borders rule cannot apply here. */
+/* Panels separate by surface contrast plus a soft directional shadow cast
+ * onto the darker canvas beside them - no hairline, no border. The shadow is
+ * wide and low-alpha so it reads as depth rather than as a drawn edge. */
 .rm-panel {
   background: var(--rm-chrome);
 }
 
-.rm-hairline-t { box-shadow: inset 0 1px 0 0 var(--rm-line); }
-.rm-hairline-b { box-shadow: inset 0 -1px 0 0 var(--rm-line); }
-.rm-hairline-l { box-shadow: inset 1px 0 0 0 var(--rm-line); }
-.rm-hairline-r { box-shadow: inset -1px 0 0 0 var(--rm-line); }
+.rm-hairline-t { box-shadow: 0 -10px 20px -14px rgb(0 0 0 / 0.55); }
+.rm-hairline-b { box-shadow: 0 10px 20px -14px rgb(0 0 0 / 0.55); }
+.rm-hairline-l { box-shadow: -10px 0 20px -14px rgb(0 0 0 / 0.55); }
+.rm-hairline-r { box-shadow: 10px 0 20px -14px rgb(0 0 0 / 0.55); }
 
 /* The checkerboard behind the canvas, so transparent compositions read as
  * transparent rather than as black. Sized in device pixels, not scaled with

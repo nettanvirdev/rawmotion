@@ -1016,6 +1016,155 @@ export const DepthBackground: React.FC<DepthBackgroundProps> = ({
   </AbsoluteFill>
 );
 
+/* ------------------------------------------------------------------ *
+ * Waves
+ * ------------------------------------------------------------------ */
+
+export interface WavesProps {
+  hue?: number;
+  hueSpread?: number;
+  intensity?: number;
+  speed?: number;
+  /** Number of stacked wave layers. */
+  layers?: number;
+}
+
+/**
+ * Flowing water surfaces - stacked sine ribbons drawn as SVG paths.
+ *
+ * Each layer is one `<path>` whose points are a function of `frame`, so the
+ * cost per frame is a few dozen sine evaluations, not a filter pass. Layers
+ * further "back" are slower, dimmer and higher in frame, which is what makes
+ * the stack read as depth rather than as stripes.
+ */
+export const Waves: React.FC<WavesProps> = ({
+  hue = 210,
+  hueSpread = 36,
+  intensity = 1,
+  speed = 1,
+  layers = 4,
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+
+  const n = Math.min(6, Math.max(1, Math.round(layers)));
+  const paths = Array.from({ length: n }, (_, i) => {
+    const depth = i / Math.max(1, n - 1); // 0 = back, 1 = front
+    const baseY = mix(depth, 0.42, 0.78) * height;
+    const amp = mix(depth, 0.02, 0.055) * height;
+    const wavelength = mix(seededRandom(i * 13 + 1), 0.55, 0.95) * width;
+    const phaseSpeed = mix(depth, 0.12, 0.3) * speed;
+    const phase = (frame * phaseSpeed) / 60 + seededRandom(i * 7 + 3) * Math.PI * 2;
+
+    const steps = 24;
+    const points = Array.from({ length: steps + 1 }, (_, s) => {
+      const x = (s / steps) * width;
+      const y =
+        baseY +
+        Math.sin((x / wavelength) * Math.PI * 2 + phase) * amp +
+        Math.sin((x / (wavelength * 0.47)) * Math.PI * 2 + phase * 1.7) * amp * 0.35;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+
+    return {
+      i,
+      d: `M ${points.join(" L ")} L ${width},${height} L 0,${height} Z`,
+      hue: hue + mix(depth, -hueSpread / 2, hueSpread / 2),
+      alpha: mix(depth, 0.1, 0.28) * intensity,
+      lightness: mix(depth, 0.32, 0.6),
+    };
+  });
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        {paths.map((p) => (
+          <path
+            key={p.i}
+            d={p.d}
+            fill={`oklch(${p.lightness} 0.11 ${p.hue} / ${p.alpha.toFixed(3)})`}
+          />
+        ))}
+      </svg>
+    </AbsoluteFill>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Bokeh
+ * ------------------------------------------------------------------ */
+
+export interface BokehProps {
+  hue?: number;
+  count?: number;
+  intensity?: number;
+  speed?: number;
+}
+
+const MAX_BOKEH = 24;
+
+/**
+ * Out-of-focus light discs drifting through frame - the shallow depth of
+ * field cue. Fewer, larger and much softer than `ParticleField`: bokeh reads
+ * as a lens, particles read as objects.
+ */
+export const Bokeh: React.FC<BokehProps> = ({
+  hue = 45,
+  count = 12,
+  intensity = 1,
+  speed = 1,
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+
+  const discs = useMemo(
+    () =>
+      Array.from({ length: Math.min(MAX_BOKEH, Math.max(1, Math.round(count))) }, (_, i) => {
+        const depth = seededRandom(i * 5 + 1);
+        return {
+          i,
+          x: seededRandom(i * 9 + 2),
+          y: seededRandom(i * 13 + 3),
+          size: mix(depth, 0.04, 0.16),
+          alpha: mix(depth, 0.05, 0.2),
+          period: mix(seededRandom(i * 17 + 5), 420, 940),
+          phase: seededRandom(i * 19 + 7),
+          hue: hue + mix(seededRandom(i * 23 + 11), -30, 30),
+        };
+      }),
+    [count, hue],
+  );
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      {discs.map((d) => {
+        const dx = (oscillate(frame * speed, d.period, d.phase) - 0.5) * 0.16;
+        const dy = (oscillate(frame * speed, d.period * 1.43, d.phase) - 0.5) * 0.12;
+        const swell = mix(oscillate(frame * speed, d.period * 0.9, d.phase), 0.7, 1);
+        const size = Math.max(width, height) * d.size;
+
+        return (
+          <div
+            key={d.i}
+            style={{
+              position: "absolute",
+              left: `${(d.x + dx) * 100}%`,
+              top: `${(d.y + dy) * 100}%`,
+              width: size,
+              height: size,
+              transform: "translate(-50%, -50%)",
+              borderRadius: "50%",
+              background: `radial-gradient(circle, hsl(${d.hue} 75% 70% / ${(d.alpha * intensity * swell).toFixed(3)}) 0%, hsl(${d.hue} 75% 70% / ${(d.alpha * intensity * swell * 0.55).toFixed(3)}) 60%, transparent 72%)`,
+              filter: `blur(${size * 0.06}px)`,
+              mixBlendMode: "screen",
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
 /**
  * Background components addressable from `project.json` by name.
  *
@@ -1032,6 +1181,8 @@ export const BACKGROUND_REGISTRY = {
   spotlight: { label: "Spotlight", component: Spotlight },
   auroraBands: { label: "Aurora bands", component: AuroraBands },
   beams: { label: "Light beams", component: Beams },
+  waves: { label: "Waves - flowing water surfaces", component: Waves },
+  bokeh: { label: "Bokeh - out-of-focus light discs", component: Bokeh },
   cinematicGradient: { label: "Cinematic gradient", component: CinematicGradient },
   atmosphere: { label: "Atmosphere", component: Atmosphere },
   particleField: { label: "Particle field", component: ParticleField },

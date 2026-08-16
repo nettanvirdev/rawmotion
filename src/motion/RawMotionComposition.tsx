@@ -26,7 +26,7 @@ import {
 import { LayerView } from "./layers";
 import { ThemeProvider } from "./theme";
 import { resolveTheme } from "./themes.js";
-import { EASINGS, blurFilter, mix, progress } from "./timing";
+import { EASINGS, blurFilter, mix, progress, seededRandom } from "./timing";
 
 export interface RawMotionCompositionProps {
   project: Project;
@@ -193,6 +193,54 @@ function useTransitionStyle(
         outer: { clipPath: `inset(0 ${(1 - t) * 100}% 0 0)` },
         inner: {},
       };
+
+    case "zoom":
+      // The incoming scene settles down from slightly too large - the
+      // standard product-film cut, softer than a wipe, more directed than a
+      // fade.
+      return {
+        outer: { opacity: t },
+        inner: { transform: `scale(${mix(t, 1.14, 1)})` },
+      };
+
+    case "push":
+      // Arrives laterally while the outgoing scene keeps playing underneath.
+      return {
+        outer: { opacity: Math.min(1, t * 1.8) },
+        inner: { transform: `translateX(${(1 - t) * 100}%)` },
+      };
+
+    case "circle":
+      // An iris reveal from centre. 75% radius covers the corners of any
+      // aspect ratio.
+      return {
+        outer: { clipPath: `circle(${t * 75}% at 50% 50%)` },
+        inner: {},
+      };
+
+    case "spin":
+      // A slight rotational settle - far less than a full turn, which would
+      // read as a slideshow effect rather than a cut.
+      return {
+        outer: { opacity: t },
+        inner: {
+          transform: `rotate(${(1 - t) * -4}deg) scale(${mix(t, 1.1, 1)})`,
+        },
+      };
+
+    case "glitch": {
+      // Deterministic 2-frame jitter that settles as the scene lands. Seeded
+      // from the quantised frame so preview and render agree exactly.
+      const step = Math.floor(frame / 2);
+      const amp = (1 - t) * 26;
+      const flicker = t < 0.9 && seededRandom(step + 11) < 0.22 ? 0.55 : 1;
+      return {
+        outer: { opacity: Math.min(1, t * 1.5) * flicker },
+        inner: {
+          transform: `translate(${(seededRandom(step) - 0.5) * 2 * amp}px, ${(seededRandom(step + 5) - 0.5) * amp * 0.4}px)`,
+        },
+      };
+    }
 
     default:
       return { outer: {}, inner: {} };

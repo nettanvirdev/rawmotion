@@ -79,9 +79,8 @@ export const CommandPalette: React.FC<{
         aria-label="Command palette"
         onPointerDown={(e) => e.stopPropagation()}
         className={cn(
-          "relative w-[560px] max-w-[calc(100vw-48px)] overflow-hidden rounded-[10px]",
-          "bg-[var(--rm-chrome)] shadow-[0_32px_80px_-16px_rgb(0_0_0/0.7)]",
-          "ring-1 ring-[var(--rm-line-strong)]",
+          "relative w-[560px] max-w-[calc(100vw-48px)] overflow-hidden rounded-[16px]",
+          "bg-[var(--rm-chrome)] shadow-[0_32px_80px_-16px_rgb(0_0_0/0.7),0_8px_24px_-8px_rgb(0_0_0/0.5)]",
         )}
         style={{ animation: "fly-and-scale 160ms cubic-bezier(0.33, 1, 0.68, 1)" }}
       >

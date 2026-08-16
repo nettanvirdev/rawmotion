@@ -511,7 +511,7 @@ const Clip: React.FC<{
       dimmed && "opacity-40",
       selected
         ? "ring-[1.5px] ring-[var(--rm-accent)]"
-        : "ring-1 ring-inset ring-white/10 hover:ring-white/20",
+        : "shadow-[inset_0_10px_14px_-12px_rgb(255_255_255/0.16)] hover:shadow-[inset_0_10px_14px_-12px_rgb(255_255_255/0.3)]",
     )}
     style={{ left, width: Math.max(8, width) }}
   >

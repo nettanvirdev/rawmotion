@@ -243,6 +243,8 @@ the theme.
 - `spotlight` — Spotlight - a wide light source above frame
 - `auroraBands` — Aurora bands - flowing ribbons of light
 - `beams` — Light beams - hard-edged shafts, high energy
+- `waves` — Waves - stacked flowing water surfaces, for organic/lifestyle pieces
+- `bokeh` — Bokeh - out-of-focus light discs, the shallow depth-of-field cue
 - `depth` — Depth - the older particle-based composite
 - `cinematicGradient` — Cinematic gradient
 - `atmosphere` — Atmosphere - drifting pools of light
@@ -265,3 +267,28 @@ the theme.
 - `depthIn` — Depth - back, blurred, resolving forward *(Cinematic)*
 - `driftIn` — Drift - slow lateral settle *(Cinematic)*
 - `tiltIn` — Tilt - slight rotation on arrival *(Cinematic)*
+- `popIn` — Pop - overshoot scale; badges, stats, beat hits *(Energy)*
+- `whipLeft` — Whip from right - motion-blurred snap *(Energy)*
+- `whipRight` — Whip from left - motion-blurred snap *(Energy)*
+- `zoomBlur` — Crash zoom - resolves out of blur; also the "morph" crossfade tool *(Energy)*
+- `glitchIn` — Glitch - deterministic jitter that settles *(Energy)*
+- `floatIn` — Float - rises, then keeps a gentle bob; the Apple hero-shot look *(Organic)*
+- `waveIn` — Wave - water-like sway on arrival *(Organic)*
+- `swingIn` — Swing - decaying pendulum entrance *(Organic)*
+- `orbitIn` — Orbit - arcs in along a curve *(Organic)*
+- `flipIn` — Flip - card settling flat *(Organic)*
+
+## Scene transitions
+
+`scene.transition.type`, overlapping this scene with the next:
+
+- `none` — hard cut
+- `fade` — cross dissolve; the default between related scenes
+- `blur` — blur dissolve; a change of subject
+- `slide` — incoming scene rises in
+- `wipe` — hard edge travels across frame
+- `zoom` — incoming scene settles down from 114%; the product-film cut
+- `push` — incoming scene pushes in laterally; narrative "meanwhile"
+- `circle` — iris reveal from centre; the big reveal
+- `spin` — slight rotational settle; high energy only
+- `glitch` — jittered arrival; tech/hype pieces only

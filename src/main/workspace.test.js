@@ -74,7 +74,12 @@ describe("resolveInProject", () => {
 
 describe("resolveProjectDir", () => {
   it("accepts a plain project folder name", () => {
-    expect(resolveProjectDir("Demo.rawmotion")).toBe(PROJECT);
+    // path.join, not the resolved PROJECT constant: workspaceRoot() joins the
+    // mocked documents path, and on Windows path.resolve would add a drive
+    // letter that join does not.
+    expect(resolveProjectDir("Demo.rawmotion")).toBe(
+      path.join("/home/user/Documents", "Raw Motion", "Demo.rawmotion"),
+    );
   });
 
   it("refuses a name containing path structure", () => {

@@ -33,6 +33,8 @@ import { recordUserOperation, useAiStore } from "@/state/aiStore";
 import * as ops from "@/state/operations";
 import { Canvas } from "./Canvas";
 import { CommandPalette, type Command } from "./CommandPalette";
+import { RenderDialog, type RenderChoice } from "./RenderDialog";
+import { SettingsModal } from "./SettingsModal";
 import { Inspector } from "./Inspector";
 import { LeftPanel } from "./LeftPanel";
 import { RenderQueuePanel } from "./RenderQueuePanel";
@@ -52,6 +54,8 @@ export const EditorShell: React.FC<{
   const record = useAiStore((s) => s.record);
 
   const [notice, setNotice] = useState<string | null>(null);
+  const [renderOpen, setRenderOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const assetUrls = useAssetUrls(dirName, project);
 
   const duration = useMemo(() => projectDurationInFrames(project), [project]);
@@ -85,15 +89,24 @@ export const EditorShell: React.FC<{
 
   /* ---- actions ---- */
 
-  const render = async (format: "mp4" | "webm" = "mp4") => {
+  const render = async (choice: RenderChoice) => {
     try {
       // Save first: the queue snapshots the model it is handed, and an
       // export that silently omits the last edit is worse than a slow one.
       await useProjectStore.getState().save();
-      await bridge.render.enqueue({ dirName, project, format, label: project.name });
+      await bridge.render.enqueue({
+        dirName,
+        project,
+        format: choice.format,
+        scale: choice.scale,
+        quality: choice.quality,
+        label: project.name,
+      });
+      setRenderOpen(false);
       editor.setBottomPanel("renders");
-      recordUserOperation(`Queued ${format.toUpperCase()} render`);
+      recordUserOperation(`Queued ${choice.format.toUpperCase()} render`);
     } catch (error) {
+      setRenderOpen(false);
       setNotice(errorMessage(error));
     }
   };
@@ -171,8 +184,7 @@ export const EditorShell: React.FC<{
 
       { id: "import", group: "Assets", label: "Import media", run: () => void importMedia() },
 
-      { id: "render-mp4", group: "Render", label: "Render MP4", keys: "mod+shift+r", run: () => void render("mp4") },
-      { id: "render-webm", group: "Render", label: "Render WebM", run: () => void render("webm") },
+      { id: "render", group: "Render", label: "Export video…", keys: "mod+shift+r", run: () => setRenderOpen(true) },
       { id: "renders", group: "Render", label: "Show render queue", run: () => editor.setBottomPanel("renders") },
       { id: "timeline", group: "Render", label: "Show timeline", run: () => editor.setBottomPanel("timeline") },
 
@@ -182,7 +194,8 @@ export const EditorShell: React.FC<{
       { id: "left", group: "View", label: "Toggle left panel", keys: "mod+b", run: editor.toggleLeft },
       { id: "inspector", group: "View", label: "Toggle inspector", keys: "mod+alt+b", run: editor.toggleInspector },
 
-      { id: "reveal", group: "Project", label: "Reveal project folder", run: () => void bridge.workspace.reveal(dirName) },
+      { id: "reveal", group: "Project", label: "Reveal project folder", run: () => void bridge.workspace.reveal(dirName).catch((e) => setNotice(errorMessage(e))) },
+      { id: "settings", group: "Project", label: "Settings…", keys: "mod+,", run: () => setSettingsOpen(true) },
       { id: "close", group: "Project", label: "Close project", run: onCloseProject },
     ],
     // Rebuilt whenever anything a command closes over changes. The array is
@@ -268,7 +281,7 @@ export const EditorShell: React.FC<{
         canRedo={projectStore.canRedo()}
         onUndo={undo}
         onRedo={redo}
-        onRender={() => void render("mp4")}
+        onRender={() => setRenderOpen(true)}
         onOpenPalette={() => editor.setCommandPaletteOpen(true)}
       />
 
@@ -304,6 +317,20 @@ export const EditorShell: React.FC<{
         open={editor.commandPaletteOpen}
         commands={commands}
         onClose={() => editor.setCommandPaletteOpen(false)}
+      />
+
+      <RenderDialog
+        open={renderOpen}
+        project={project}
+        busy={false}
+        onClose={() => setRenderOpen(false)}
+        onRender={(choice) => void render(choice)}
+      />
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        canChangeWorkspace={false}
       />
     </div>
   );

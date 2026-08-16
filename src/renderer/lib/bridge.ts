@@ -80,6 +80,21 @@ export interface RenderJob {
   finishedAt: string | null;
 }
 
+export type GpuMode = "auto" | "on" | "off";
+export type RenderQuality = "draft" | "standard" | "high";
+
+export interface AppSettings {
+  workspace: string | null;
+  render: { gpu: GpuMode; quality: RenderQuality; concurrency: number | null };
+}
+
+export interface SettingsPayload {
+  settings: AppSettings;
+  paths: { settingsFile: string; workspace: string; userData: string };
+  gpu: { available: boolean; description: string; devices: string[] };
+  cpu: { model: string; cores: number; memoryGb: number };
+}
+
 type IpcResult<T> = { ok: true; value: T } | { ok: false; error: string; detail?: string };
 
 /** Thrown by `unwrap` when a main-process handler reports failure. */
@@ -107,6 +122,14 @@ interface RawBridge {
   workspace: {
     list(): Promise<IpcResult<ProjectSummary[]>>;
     reveal(dirName?: string): Promise<IpcResult<boolean>>;
+  };
+  settings: {
+    get(): Promise<IpcResult<SettingsPayload>>;
+    update(patch: {
+      workspace?: string | null;
+      render?: Partial<AppSettings["render"]>;
+    }): Promise<IpcResult<SettingsPayload>>;
+    chooseWorkspace(): Promise<IpcResult<SettingsPayload & { canceled: boolean }>>;
   };
   project: {
     create(options: {
@@ -142,6 +165,8 @@ interface RawBridge {
       format?: "mp4" | "webm";
       width?: number;
       height?: number;
+      scale?: number;
+      quality?: RenderQuality;
     }): Promise<IpcResult<RenderJob>>;
     cancel(jobId: string): Promise<IpcResult<boolean>>;
     list(): Promise<IpcResult<RenderJob[]>>;
@@ -207,6 +232,13 @@ export const bridge = {
   workspace: {
     list: () => unwrap(requireBridge().workspace.list()),
     reveal: (dirName?: string) => unwrap(requireBridge().workspace.reveal(dirName)),
+  },
+
+  settings: {
+    get: () => unwrap(requireBridge().settings.get()),
+    update: (patch: Parameters<RawBridge["settings"]["update"]>[0]) =>
+      unwrap(requireBridge().settings.update(patch)),
+    chooseWorkspace: () => unwrap(requireBridge().settings.chooseWorkspace()),
   },
 
   project: {

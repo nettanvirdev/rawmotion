@@ -307,6 +307,11 @@ const SceneInspector: React.FC<{ scene: Scene }> = ({ scene }) => {
               { value: "blur", label: "Blur dissolve" },
               { value: "slide", label: "Slide up" },
               { value: "wipe", label: "Wipe" },
+              { value: "zoom", label: "Zoom settle" },
+              { value: "push", label: "Push" },
+              { value: "circle", label: "Iris circle" },
+              { value: "spin", label: "Spin settle" },
+              { value: "glitch", label: "Glitch" },
             ]}
           />
         </Row>
