@@ -1,0 +1,1066 @@
+/**
+ * The inspector.
+ *
+ * Context-sensitive: it renders controls for whatever is selected - a layer,
+ * a scene, an audio clip - and falls back to composition settings when
+ * nothing is.
+ *
+ * Every control writes through `projectStore.apply`, which means there is no
+ * local form state to synchronise. A value shown here is read from the
+ * project on every render, so a change made by an agent on disk, by undo, or
+ * by dragging a clip in the timeline is reflected immediately without this
+ * component knowing those paths exist.
+ *
+ * Continuous controls pass a `coalesceKey` so a drag becomes one undo entry.
+ */
+
+import React from "react";
+import { Copy, Trash2 } from "lucide-react";
+import type { Layer, Project, Scene } from "@shared/project.js";
+import {
+  COMPOSITION_PRESETS,
+  LAYER_TYPES,
+  findLayer,
+  formatTimecode,
+} from "@shared/project.js";
+import { BACKGROUND_REGISTRY } from "@motion/backgrounds";
+import { COMPONENT_REGISTRY, componentDefaults, lookupComponent } from "@motion/registry";
+import { presetOptions } from "@motion/presets";
+import { useEditorStore } from "@/state/editorStore";
+import { useProjectStore } from "@/state/projectStore";
+import * as ops from "@/state/operations";
+import {
+  ColorField,
+  EmptyState,
+  IconButton,
+  NumberField,
+  Pair,
+  Row,
+  SegmentedField,
+  SelectField,
+  Section,
+  SliderField,
+  TextField,
+  ToggleField,
+} from "./controls";
+
+export const Inspector: React.FC<{ project: Project }> = ({ project }) => {
+  const selection = useEditorStore((s) => s.selection);
+
+  if (selection.kind === "layer") {
+    const found = findLayer(project, selection.id);
+    if (!found) return <CompositionInspector project={project} />;
+    return <LayerInspector project={project} layer={found.layer} scene={found.scene} />;
+  }
+
+  if (selection.kind === "scene") {
+    const scene = project.scenes.find((s) => s.id === selection.id);
+    if (!scene) return <CompositionInspector project={project} />;
+    return <SceneInspector scene={scene} />;
+  }
+
+  if (selection.kind === "audio") {
+    const clip = project.audio.find((a) => a.id === selection.id);
+    if (!clip) return <CompositionInspector project={project} />;
+    return <AudioInspector project={project} clip={clip} />;
+  }
+
+  return <CompositionInspector project={project} />;
+};
+
+/* ------------------------------------------------------------------ *
+ * Composition
+ * ------------------------------------------------------------------ */
+
+const CompositionInspector: React.FC<{ project: Project }> = ({ project }) => {
+  const apply = useProjectStore((s) => s.apply);
+  const { width, height, fps, background } = project.composition;
+
+  const activePreset = COMPOSITION_PRESETS.find(
+    (p) => p.width === width && p.height === height && p.fps === fps,
+  );
+
+  return (
+    <div className="rm-scroll flex-1 overflow-y-auto">
+      <Header title="Composition" subtitle={project.name} />
+
+      <Section title="Format">
+        <Row label="Preset">
+          <SelectField
+            value={activePreset?.id ?? "custom"}
+            onChange={(id) => {
+              const preset = COMPOSITION_PRESETS.find((p) => p.id === id);
+              if (!preset) return;
+              apply("Change format", (p) =>
+                ops.updateComposition(p, {
+                  width: preset.width,
+                  height: preset.height,
+                  fps: preset.fps,
+                }),
+              );
+            }}
+            options={[
+              ...(activePreset ? [] : [{ value: "custom", label: "Custom" }]),
+              ...COMPOSITION_PRESETS.map((p) => ({
+                value: p.id,
+                label: `${p.label} - ${p.hint}`,
+              })),
+            ]}
+          />
+        </Row>
+
+        <Pair label="Size">
+          <NumberField
+            value={width}
+            min={16}
+            max={7680}
+            step={2}
+            precision={0}
+            onChange={(v) =>
+              apply("Change width", (p) => ops.updateComposition(p, { width: Math.round(v) }), {
+                coalesceKey: "comp:width",
+              })
+            }
+          />
+          <NumberField
+            value={height}
+            min={16}
+            max={7680}
+            step={2}
+            precision={0}
+            onChange={(v) =>
+              apply("Change height", (p) => ops.updateComposition(p, { height: Math.round(v) }), {
+                coalesceKey: "comp:height",
+              })
+            }
+          />
+        </Pair>
+
+        <Row label="Frame rate" hint="Frames per second">
+          <NumberField
+            value={fps}
+            min={1}
+            max={120}
+            step={1}
+            precision={0}
+            suffix="fps"
+            onChange={(v) =>
+              apply("Change frame rate", (p) =>
+                ops.updateComposition(p, { fps: Math.max(1, Math.round(v)) }),
+              )
+            }
+          />
+        </Row>
+
+        <Row label="Backdrop">
+          <ColorField
+            value={background}
+            onChange={(v) =>
+              apply("Change backdrop", (p) => ops.updateComposition(p, { background: v }), {
+                coalesceKey: "comp:bg",
+              })
+            }
+          />
+        </Row>
+      </Section>
+
+      <Section title="Project">
+        <Row label="Name">
+          <TextField
+            value={project.name}
+            onChange={(v) =>
+              apply("Rename project", (p) => ops.renameProject(p, v), {
+                coalesceKey: "project:name",
+              })
+            }
+          />
+        </Row>
+      </Section>
+
+      <p className="px-3 py-4 text-[11px] leading-[1.6] text-[var(--rm-text-faint)]">
+        Select a layer, scene or audio clip to edit it. Duration is computed
+        from the scenes - there is no project length to set.
+      </p>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Scene
+ * ------------------------------------------------------------------ */
+
+const SceneInspector: React.FC<{ scene: Scene }> = ({ scene }) => {
+  const apply = useProjectStore((s) => s.apply);
+  const select = useEditorStore((s) => s.select);
+
+  return (
+    <div className="rm-scroll flex-1 overflow-y-auto">
+      <Header
+        title="Scene"
+        subtitle={scene.name}
+        actions={
+          <>
+            <IconButton
+              title="Duplicate scene"
+              onClick={() => apply("Duplicate scene", (p) => ops.duplicateScene(p, scene.id))}
+            >
+              <Copy className="size-3.5" />
+            </IconButton>
+            <IconButton
+              title="Delete scene"
+              danger
+              onClick={() => {
+                apply("Delete scene", (p) => ops.removeScene(p, scene.id));
+                select({ kind: "none" });
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </IconButton>
+          </>
+        }
+      />
+
+      <Section title="Scene">
+        <Row label="Name">
+          <TextField
+            value={scene.name}
+            onChange={(v) =>
+              apply("Rename scene", (p) => ops.updateScene(p, scene.id, { name: v }), {
+                coalesceKey: `scene:name:${scene.id}`,
+              })
+            }
+          />
+        </Row>
+        <Row label="Duration">
+          <NumberField
+            value={scene.durationInFrames}
+            min={1}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) =>
+              apply(
+                "Change scene duration",
+                (p) => ops.updateScene(p, scene.id, { durationInFrames: Math.max(1, Math.round(v)) }),
+                { coalesceKey: `scene:dur:${scene.id}` },
+              )
+            }
+          />
+        </Row>
+      </Section>
+
+      <Section title="Camera">
+        <Row label="Move">
+          <SelectField
+            value={scene.camera.move}
+            onChange={(v) =>
+              apply("Change camera", (p) =>
+                ops.updateSceneCamera(p, scene.id, { move: v as Scene["camera"]["move"] }),
+              )
+            }
+            options={[
+              { value: "none", label: "Static" },
+              { value: "push", label: "Push in" },
+              { value: "pull", label: "Pull out" },
+              { value: "pan", label: "Pan" },
+            ]}
+          />
+        </Row>
+        {scene.camera.move !== "none" ? (
+          <Row label="Amount">
+            <SliderField
+              value={scene.camera.amount}
+              min={0}
+              max={0.5}
+              step={0.005}
+              precision={3}
+              onChange={(v) =>
+                apply("Change camera amount", (p) => ops.updateSceneCamera(p, scene.id, { amount: v }), {
+                  coalesceKey: `scene:cam:${scene.id}`,
+                })
+              }
+            />
+          </Row>
+        ) : null}
+      </Section>
+
+      <Section title="Transition out">
+        <Row label="Type" hint="How the next scene arrives over this one">
+          <SelectField
+            value={scene.transition.type}
+            onChange={(v) =>
+              apply("Change transition", (p) =>
+                ops.updateSceneTransition(p, scene.id, {
+                  type: v as Scene["transition"]["type"],
+                  // A transition with no length is invisible; give it a
+                  // sensible one the moment a type is chosen.
+                  durationInFrames:
+                    v !== "none" && scene.transition.durationInFrames === 0
+                      ? 15
+                      : scene.transition.durationInFrames,
+                }),
+              )
+            }
+            options={[
+              { value: "none", label: "Cut" },
+              { value: "fade", label: "Cross dissolve" },
+              { value: "blur", label: "Blur dissolve" },
+              { value: "slide", label: "Slide up" },
+              { value: "wipe", label: "Wipe" },
+            ]}
+          />
+        </Row>
+        {scene.transition.type !== "none" ? (
+          <Row label="Length" hint="Frames of overlap with the next scene">
+            <NumberField
+              value={scene.transition.durationInFrames}
+              min={0}
+              max={scene.durationInFrames}
+              step={1}
+              precision={0}
+              suffix="f"
+              onChange={(v) =>
+                apply(
+                  "Change transition length",
+                  (p) =>
+                    ops.updateSceneTransition(p, scene.id, {
+                      durationInFrames: Math.max(0, Math.round(v)),
+                    }),
+                  { coalesceKey: `scene:tr:${scene.id}` },
+                )
+              }
+            />
+          </Row>
+        ) : null}
+      </Section>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Layer
+ * ------------------------------------------------------------------ */
+
+const LayerInspector: React.FC<{ project: Project; layer: Layer; scene: Scene }> = ({
+  project,
+  layer,
+  scene,
+}) => {
+  const apply = useProjectStore((s) => s.apply);
+  const select = useEditorStore((s) => s.select);
+  const { fps } = project.composition;
+
+  const setTransform = (patch: Partial<Layer["transform"]>, key: string) =>
+    apply("Transform layer", (p) => ops.updateLayerTransform(p, layer.id, patch), {
+      coalesceKey: `layer:${key}:${layer.id}`,
+    });
+
+  const setProps = (patch: Record<string, unknown>, key: string) =>
+    apply("Change layer", (p) => ops.updateLayerProps(p, layer.id, patch), {
+      coalesceKey: `layer:${key}:${layer.id}`,
+    });
+
+  return (
+    <div className="rm-scroll flex-1 overflow-y-auto">
+      <Header
+        title={layer.type}
+        subtitle={layer.name}
+        actions={
+          <>
+            <IconButton
+              title="Duplicate layer"
+              onClick={() =>
+                apply("Duplicate layer", (p) => ops.duplicateLayer(p, layer.id).project)
+              }
+            >
+              <Copy className="size-3.5" />
+            </IconButton>
+            <IconButton
+              title="Delete layer"
+              danger
+              onClick={() => {
+                apply("Delete layer", (p) => ops.removeLayer(p, layer.id));
+                select({ kind: "none" });
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </IconButton>
+          </>
+        }
+      />
+
+      <Section title="Layer">
+        <Row label="Name">
+          <TextField
+            value={layer.name}
+            onChange={(v) =>
+              apply("Rename layer", (p) => ops.updateLayer(p, layer.id, { name: v }), {
+                coalesceKey: `layer:name:${layer.id}`,
+              })
+            }
+          />
+        </Row>
+        <Row label="Type">
+          <SelectField
+            value={layer.type}
+            onChange={(v) =>
+              apply("Change layer type", (p) =>
+                ops.updateLayer(p, layer.id, {
+                  type: v as Layer["type"],
+                  // Props are type-specific, so switching type resets them.
+                  // Merging would leave a text layer carrying a video src.
+                  props: {},
+                }),
+              )
+            }
+            options={LAYER_TYPES.map((t) => ({ value: t, label: t }))}
+          />
+        </Row>
+      </Section>
+
+      <Section title="Timing">
+        <Pair label="Start / length">
+          <NumberField
+            value={layer.start}
+            min={0}
+            max={scene.durationInFrames - 1}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) =>
+              apply("Move layer", (p) => ops.setLayerTiming(p, layer.id, { start: v }), {
+                coalesceKey: `layer:start:${layer.id}`,
+              })
+            }
+          />
+          <NumberField
+            value={layer.duration}
+            min={1}
+            max={scene.durationInFrames}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) =>
+              apply("Trim layer", (p) => ops.setLayerTiming(p, layer.id, { duration: v }), {
+                coalesceKey: `layer:dur:${layer.id}`,
+              })
+            }
+          />
+        </Pair>
+        <p className="pl-[84px] text-[10px] text-[var(--rm-text-faint)] rm-num">
+          {formatTimecode(layer.start, fps)} - {formatTimecode(layer.start + layer.duration, fps)}
+        </p>
+      </Section>
+
+      <Section title="Transform">
+        <Pair label="Position">
+          <NumberField
+            value={layer.transform.x}
+            step={1}
+            precision={0}
+            onChange={(v) => setTransform({ x: v }, "x")}
+          />
+          <NumberField
+            value={layer.transform.y}
+            step={1}
+            precision={0}
+            onChange={(v) => setTransform({ y: v }, "y")}
+          />
+        </Pair>
+        <Pair label="Scale / spin">
+          <NumberField
+            value={layer.transform.scale}
+            min={0.01}
+            max={20}
+            step={0.01}
+            precision={2}
+            onChange={(v) => setTransform({ scale: v }, "scale")}
+          />
+          <NumberField
+            value={layer.transform.rotate}
+            step={1}
+            precision={1}
+            suffix="°"
+            onChange={(v) => setTransform({ rotate: v }, "rotate")}
+          />
+        </Pair>
+        <Row label="Opacity">
+          <SliderField
+            value={layer.transform.opacity}
+            onChange={(v) => setTransform({ opacity: v }, "opacity")}
+          />
+        </Row>
+        <Row label="Blur">
+          <SliderField
+            value={layer.transform.blur}
+            min={0}
+            max={60}
+            step={0.5}
+            precision={1}
+            onChange={(v) => setTransform({ blur: v }, "blur")}
+          />
+        </Row>
+      </Section>
+
+      <LayerPropsSection layer={layer} setProps={setProps} />
+
+      <AnimationSection layer={layer} which="enter" />
+      <AnimationSection layer={layer} which="exit" />
+    </div>
+  );
+};
+
+/**
+ * Type-specific properties.
+ *
+ * `component` layers are the interesting case: their controls are generated
+ * from the registry's prop schema, so registering a new motion component
+ * gives it a full inspector with no UI work.
+ */
+const LayerPropsSection: React.FC<{
+  layer: Layer;
+  setProps: (patch: Record<string, unknown>, key: string) => void;
+}> = ({ layer, setProps }) => {
+  const props = layer.props as Record<string, any>;
+
+  if (layer.type === "text") {
+    return (
+      <Section title="Text">
+        <Row label="Content">
+          <TextField
+            value={String(props.text ?? "")}
+            multiline
+            onChange={(v) => setProps({ text: v }, "text")}
+          />
+        </Row>
+        <Pair label="Size / weight">
+          <NumberField
+            value={Number(props.fontSize ?? 96)}
+            min={4}
+            max={800}
+            step={1}
+            precision={0}
+            onChange={(v) => setProps({ fontSize: v }, "fontSize")}
+          />
+          <NumberField
+            value={Number(props.fontWeight ?? 500)}
+            min={100}
+            max={900}
+            step={100}
+            precision={0}
+            onChange={(v) => setProps({ fontWeight: v }, "fontWeight")}
+          />
+        </Pair>
+        <Row label="Tracking">
+          <SliderField
+            value={Number(props.letterSpacing ?? -0.02)}
+            min={-0.1}
+            max={0.4}
+            step={0.005}
+            precision={3}
+            onChange={(v) => setProps({ letterSpacing: v }, "tracking")}
+          />
+        </Row>
+        <Row label="Leading">
+          <SliderField
+            value={Number(props.lineHeight ?? 1.1)}
+            min={0.7}
+            max={2.5}
+            step={0.01}
+            precision={2}
+            onChange={(v) => setProps({ lineHeight: v }, "leading")}
+          />
+        </Row>
+        <Row label="Colour">
+          <ColorField
+            value={String(props.color ?? "#ffffff")}
+            onChange={(v) => setProps({ color: v }, "color")}
+          />
+        </Row>
+        <Row label="Align">
+          <SegmentedField
+            value={String(props.align ?? "center")}
+            onChange={(v) => setProps({ align: v }, "align")}
+            options={[
+              { value: "left", label: "Left" },
+              { value: "center", label: "Center" },
+              { value: "right", label: "Right" },
+            ]}
+          />
+        </Row>
+        <Row label="Reveal" hint="Stagger the reveal by character, word or line">
+          <SelectField
+            value={String(props.split ?? "none")}
+            onChange={(v) => setProps({ split: v }, "split")}
+            options={[
+              { value: "none", label: "All at once" },
+              { value: "chars", label: "By character" },
+              { value: "words", label: "By word" },
+              { value: "lines", label: "By line" },
+            ]}
+          />
+        </Row>
+      </Section>
+    );
+  }
+
+  if (layer.type === "background") {
+    const kind = String(props.kind ?? "cinematicGradient");
+    return (
+      <Section title="Background">
+        <Row label="Kind">
+          <SelectField
+            value={kind}
+            onChange={(v) => setProps({ kind: v }, "bgkind")}
+            options={Object.entries(BACKGROUND_REGISTRY).map(([value, entry]) => ({
+              value,
+              label: entry.label,
+            }))}
+          />
+        </Row>
+        <Row label="Hue">
+          <SliderField
+            value={Number(props.hue ?? 250)}
+            min={0}
+            max={360}
+            step={1}
+            precision={0}
+            onChange={(v) => setProps({ hue: v }, "hue")}
+          />
+        </Row>
+        <Row label="Intensity">
+          <SliderField
+            value={Number(props.intensity ?? 1)}
+            min={0}
+            max={2}
+            step={0.02}
+            onChange={(v) => setProps({ intensity: v }, "intensity")}
+          />
+        </Row>
+        <Row label="Speed">
+          <SliderField
+            value={Number(props.speed ?? 1)}
+            min={0}
+            max={4}
+            step={0.05}
+            onChange={(v) => setProps({ speed: v }, "speed")}
+          />
+        </Row>
+      </Section>
+    );
+  }
+
+  if (layer.type === "shape") {
+    return (
+      <Section title="Shape">
+        <Row label="Shape">
+          <SegmentedField
+            value={String(props.shape ?? "rect")}
+            onChange={(v) => setProps({ shape: v }, "shape")}
+            options={[
+              { value: "rect", label: "Rect" },
+              { value: "ellipse", label: "Ellipse" },
+              { value: "line", label: "Line" },
+            ]}
+          />
+        </Row>
+        <Pair label="Size">
+          <NumberField
+            value={Number(props.width ?? 480)}
+            min={1}
+            step={1}
+            precision={0}
+            onChange={(v) => setProps({ width: v }, "w")}
+          />
+          <NumberField
+            value={Number(props.height ?? 300)}
+            min={1}
+            step={1}
+            precision={0}
+            onChange={(v) => setProps({ height: v }, "h")}
+          />
+        </Pair>
+        <Row label="Radius">
+          <NumberField
+            value={Number(props.radius ?? 24)}
+            min={0}
+            step={1}
+            precision={0}
+            onChange={(v) => setProps({ radius: v }, "radius")}
+          />
+        </Row>
+        <Row label="Fill">
+          <ColorField
+            value={String(props.fill ?? "#ffffff")}
+            onChange={(v) => setProps({ fill: v }, "fill")}
+          />
+        </Row>
+        <Row label="Fill alpha">
+          <SliderField
+            value={Number(props.fillOpacity ?? 0.06)}
+            onChange={(v) => setProps({ fillOpacity: v }, "fillalpha")}
+          />
+        </Row>
+        <Row label="Stroke">
+          <ColorField
+            value={String(props.stroke ?? "#ffffff")}
+            onChange={(v) => setProps({ stroke: v }, "stroke")}
+          />
+        </Row>
+        <Row label="Stroke alpha">
+          <SliderField
+            value={Number(props.strokeOpacity ?? 0.12)}
+            onChange={(v) => setProps({ strokeOpacity: v }, "strokealpha")}
+          />
+        </Row>
+      </Section>
+    );
+  }
+
+  if (layer.type === "image" || layer.type === "video") {
+    return (
+      <Section title={layer.type === "image" ? "Image" : "Video"}>
+        <Row label="Source" hint="Project-relative path, e.g. assets/images/hero.png">
+          <TextField
+            value={String(props.src ?? "")}
+            placeholder="assets/..."
+            onChange={(v) => setProps({ src: v }, "src")}
+          />
+        </Row>
+        <Row label="Fit">
+          <SegmentedField
+            value={String(props.fit ?? "contain")}
+            onChange={(v) => setProps({ fit: v }, "fit")}
+            options={[
+              { value: "contain", label: "Contain" },
+              { value: "cover", label: "Cover" },
+            ]}
+          />
+        </Row>
+        <Row label="Radius">
+          <NumberField
+            value={Number(props.radius ?? 0)}
+            min={0}
+            step={1}
+            precision={0}
+            onChange={(v) => setProps({ radius: v }, "radius")}
+          />
+        </Row>
+        {layer.type === "video" ? (
+          <Row label="Volume">
+            <SliderField
+              value={Number(props.volume ?? 0)}
+              onChange={(v) => setProps({ volume: v }, "vol")}
+            />
+          </Row>
+        ) : null}
+      </Section>
+    );
+  }
+
+  if (layer.type === "component") {
+    const name = String(props.component ?? "");
+    const entry = lookupComponent(name);
+    const inner = (props.props ?? {}) as Record<string, unknown>;
+
+    const setInner = (key: string, value: unknown) =>
+      setProps({ props: { ...inner, [key]: value } }, `cprop:${key}`);
+
+    return (
+      <>
+        <Section title="Component">
+          <Row label="Component">
+            <SelectField
+              value={name}
+              onChange={(v) =>
+                // Reset props to the new component's defaults. Carrying the
+                // old ones over would leave stale keys the new component
+                // ignores but the JSON still records.
+                setProps({ component: v, props: componentDefaults(v) }, "component")
+              }
+              options={[
+                ...(entry ? [] : [{ value: name, label: name || "Select a component" }]),
+                ...COMPONENT_REGISTRY.map((e) => ({ value: e.name, label: e.label })),
+              ]}
+            />
+          </Row>
+          {entry ? (
+            <p className="pl-[84px] text-[10px] leading-[1.5] text-[var(--rm-text-faint)]">
+              {entry.description}
+            </p>
+          ) : null}
+        </Section>
+
+        {entry ? (
+          <Section title="Properties">
+            {Object.entries(entry.props).map(([key, spec]) => (
+              <Row key={key} label={spec.label}>
+                {spec.kind === "text" ? (
+                  <TextField
+                    value={String(inner[key] ?? spec.default)}
+                    multiline={spec.multiline}
+                    onChange={(v) => setInner(key, v)}
+                  />
+                ) : spec.kind === "number" ? (
+                  <NumberField
+                    value={Number(inner[key] ?? spec.default)}
+                    min={spec.min}
+                    max={spec.max}
+                    step={spec.step ?? 1}
+                    precision={2}
+                    onChange={(v) => setInner(key, v)}
+                  />
+                ) : spec.kind === "color" ? (
+                  <ColorField
+                    value={String(inner[key] ?? spec.default)}
+                    onChange={(v) => setInner(key, v)}
+                  />
+                ) : (
+                  <SelectField
+                    value={String(inner[key] ?? spec.default)}
+                    onChange={(v) => setInner(key, v)}
+                    options={spec.options}
+                  />
+                )}
+              </Row>
+            ))}
+          </Section>
+        ) : null}
+      </>
+    );
+  }
+
+  return null;
+};
+
+/**
+ * Entrance and exit animation.
+ *
+ * Presented as an optional block with an on/off toggle rather than a
+ * "none" preset, because absence of an animation is a distinct state in the
+ * model - `animation.enter` is undefined - and conflating it with a preset
+ * named "none" would mean writing a no-op animation into every layer.
+ */
+const AnimationSection: React.FC<{ layer: Layer; which: "enter" | "exit" }> = ({
+  layer,
+  which,
+}) => {
+  const apply = useProjectStore((s) => s.apply);
+  const animation = layer.animation[which];
+
+  const update = (patch: Parameters<typeof ops.updateLayerAnimation>[3]) =>
+    apply(which === "enter" ? "Change entrance" : "Change exit", (p) =>
+      ops.updateLayerAnimation(p, layer.id, which, patch),
+    );
+
+  return (
+    <Section
+      title={which === "enter" ? "Entrance" : "Exit"}
+      actions={
+        <ToggleField
+          value={Boolean(animation)}
+          label={`Enable ${which}`}
+          onChange={(on) =>
+            update(
+              on
+                ? { preset: which === "enter" ? "riseFade" : "fade", durationInFrames: 20, delay: 0 }
+                : null,
+            )
+          }
+        />
+      }
+    >
+      {animation ? (
+        <>
+          <Row label="Preset">
+            <SelectField
+              value={animation.preset}
+              onChange={(v) => update({ preset: v })}
+              options={presetOptions()}
+            />
+          </Row>
+          <Pair label="Length / delay">
+            <NumberField
+              value={animation.durationInFrames}
+              min={1}
+              step={1}
+              precision={0}
+              suffix="f"
+              onChange={(v) => update({ durationInFrames: Math.max(1, Math.round(v)) })}
+            />
+            <NumberField
+              value={animation.delay}
+              min={0}
+              step={1}
+              precision={0}
+              suffix="f"
+              onChange={(v) => update({ delay: Math.max(0, Math.round(v)) })}
+            />
+          </Pair>
+          <Row label="Distance">
+            <NumberField
+              value={animation.distance ?? 48}
+              step={1}
+              precision={0}
+              onChange={(v) => update({ distance: v })}
+            />
+          </Row>
+          <Row label="Spring" hint="Physical settle instead of a fixed curve">
+            <ToggleField
+              value={Boolean(animation.spring)}
+              onChange={(v) => update({ spring: v })}
+            />
+          </Row>
+        </>
+      ) : (
+        <p className="text-[11px] text-[var(--rm-text-faint)]">
+          No {which === "enter" ? "entrance" : "exit"} animation.
+        </p>
+      )}
+    </Section>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Audio
+ * ------------------------------------------------------------------ */
+
+const AudioInspector: React.FC<{ project: Project; clip: Project["audio"][number] }> = ({
+  clip,
+}) => {
+  const apply = useProjectStore((s) => s.apply);
+  const select = useEditorStore((s) => s.select);
+
+  const update = (patch: Partial<typeof clip>, key: string) =>
+    apply("Change audio", (p) => ops.updateAudio(p, clip.id, patch), {
+      coalesceKey: `audio:${key}:${clip.id}`,
+    });
+
+  return (
+    <div className="rm-scroll flex-1 overflow-y-auto">
+      <Header
+        title="Audio"
+        subtitle={clip.name}
+        actions={
+          <IconButton
+            title="Remove audio"
+            danger
+            onClick={() => {
+              apply("Remove audio", (p) => ops.removeAudio(p, clip.id));
+              select({ kind: "none" });
+            }}
+          >
+            <Trash2 className="size-3.5" />
+          </IconButton>
+        }
+      />
+
+      <Section title="Clip">
+        <Row label="Name">
+          <TextField value={clip.name} onChange={(v) => update({ name: v }, "name")} />
+        </Row>
+        <Row label="Role">
+          <SelectField
+            value={clip.kind}
+            onChange={(v) => update({ kind: v as typeof clip.kind }, "kind")}
+            options={[
+              { value: "music", label: "Music" },
+              { value: "voice", label: "Voiceover" },
+              { value: "sfx", label: "Sound effect" },
+            ]}
+          />
+        </Row>
+        <Row label="Source">
+          <TextField
+            value={clip.src}
+            placeholder="assets/audio/..."
+            onChange={(v) => update({ src: v }, "src")}
+          />
+        </Row>
+      </Section>
+
+      <Section title="Timing">
+        <Pair label="Start / length">
+          <NumberField
+            value={clip.start}
+            min={0}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) => update({ start: Math.max(0, Math.round(v)) }, "start")}
+          />
+          <NumberField
+            value={clip.duration}
+            min={1}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) => update({ duration: Math.max(1, Math.round(v)) }, "dur")}
+          />
+        </Pair>
+        <Row label="Trim in" hint="Frames skipped from the head of the source file">
+          <NumberField
+            value={clip.trimStart}
+            min={0}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) => update({ trimStart: Math.max(0, Math.round(v)) }, "trim")}
+          />
+        </Row>
+      </Section>
+
+      <Section title="Mix">
+        <Row label="Volume">
+          <SliderField value={clip.volume} onChange={(v) => update({ volume: v }, "vol")} />
+        </Row>
+        <Pair label="Fades">
+          <NumberField
+            value={clip.fadeIn}
+            min={0}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) => update({ fadeIn: Math.max(0, Math.round(v)) }, "fin")}
+          />
+          <NumberField
+            value={clip.fadeOut}
+            min={0}
+            step={1}
+            precision={0}
+            suffix="f"
+            onChange={(v) => update({ fadeOut: Math.max(0, Math.round(v)) }, "fout")}
+          />
+        </Pair>
+        <Row label="Mute">
+          <ToggleField value={clip.muted} onChange={(v) => update({ muted: v }, "mute")} />
+        </Row>
+        <Row label="Solo">
+          <ToggleField value={clip.solo} onChange={(v) => update({ solo: v }, "solo")} />
+        </Row>
+      </Section>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Shared
+ * ------------------------------------------------------------------ */
+
+const Header: React.FC<{
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+}> = ({ title, subtitle, actions }) => (
+  <header className="rm-hairline-b flex h-10 items-center gap-2 px-3">
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--rm-text-faint)]">
+        {title}
+      </p>
+      {subtitle ? (
+        <p className="truncate text-[12px] leading-tight text-[var(--rm-text)]">{subtitle}</p>
+      ) : null}
+    </div>
+    {actions ? <div className="flex shrink-0 items-center gap-0.5">{actions}</div> : null}
+  </header>
+);

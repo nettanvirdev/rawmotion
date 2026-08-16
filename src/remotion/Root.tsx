@@ -31,7 +31,7 @@ const PLACEHOLDER = createProject({ name: "Raw Motion" });
 export const RemotionRoot: React.FC = () => (
   <Composition
     id="RawMotion"
-    component={RawMotionComposition as React.FC<Record<string, unknown>>}
+    component={RawMotionComposition as unknown as React.FC<Record<string, unknown>>}
     defaultProps={{ project: PLACEHOLDER } as Record<string, unknown>}
     // Width, height, fps and duration are all derived from the project.
     // Remotion requires literal defaults on the element even though

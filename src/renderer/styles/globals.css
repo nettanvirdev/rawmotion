@@ -486,3 +486,88 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * 11. Editor chrome
+ *
+ * The design system above is a document system - it inverts between light
+ * and dark because reading long-form text in a bright room should be
+ * possible. The editor is not that. A colour grading surface has to be dark
+ * regardless of the room, because the canvas is the only thing in the window
+ * that should be emitting light, and a white panel beside a video preview
+ * destroys the viewer's judgement of its exposure.
+ *
+ * So these tokens do not participate in theming. They are absolute values,
+ * and the editor sets them on its own root. The light theme still governs
+ * every non-editor surface.
+ *
+ * The ramp is warm-shifted by a hair (hue 250, ~2% chroma) rather than pure
+ * neutral. Truly neutral greys next to a saturated preview read as green.
+ * ------------------------------------------------------------------ */
+.rm-editor {
+  --rm-void: oklch(0.155 0.006 265);      /* behind the canvas */
+  --rm-chrome: oklch(0.196 0.006 265);    /* panels */
+  --rm-chrome-high: oklch(0.232 0.007 265); /* raised rows, inputs */
+  --rm-chrome-low: oklch(0.174 0.006 265);  /* sunken wells, tracks */
+  --rm-line: oklch(1 0 0 / 0.07);          /* the only hairline in the app */
+  --rm-line-strong: oklch(1 0 0 / 0.12);
+
+  --rm-text: oklch(0.97 0 0);
+  --rm-text-dim: oklch(0.72 0.005 265);
+  --rm-text-faint: oklch(0.55 0.005 265);
+
+  /* One accent, used only for state that the user caused: selection, the
+   * playhead, a running render. Never decoration. */
+  --rm-accent: oklch(0.72 0.16 275);
+  --rm-accent-dim: oklch(0.72 0.16 275 / 0.16);
+  --rm-danger: oklch(0.65 0.19 25);
+  --rm-good: oklch(0.75 0.15 155);
+
+  --rm-track-h: 30px;
+
+  color: var(--rm-text);
+  background: var(--rm-void);
+  font-feature-settings: "cv02", "cv03", "cv04";
+}
+
+/* Panels separate by a hairline rather than by shadow. In a dark editor a
+ * drop shadow between two dark panels is invisible, so the document
+ * system's no-borders rule cannot apply here. */
+.rm-panel {
+  background: var(--rm-chrome);
+}
+
+.rm-hairline-t { box-shadow: inset 0 1px 0 0 var(--rm-line); }
+.rm-hairline-b { box-shadow: inset 0 -1px 0 0 var(--rm-line); }
+.rm-hairline-l { box-shadow: inset 1px 0 0 0 var(--rm-line); }
+.rm-hairline-r { box-shadow: inset -1px 0 0 0 var(--rm-line); }
+
+/* The checkerboard behind the canvas, so transparent compositions read as
+ * transparent rather than as black. Sized in device pixels, not scaled with
+ * zoom - it is chrome, not content. */
+.rm-checker {
+  background-color: var(--rm-void);
+  background-image:
+    linear-gradient(45deg, oklch(1 0 0 / 0.022) 25%, transparent 25%),
+    linear-gradient(-45deg, oklch(1 0 0 / 0.022) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, oklch(1 0 0 / 0.022) 75%),
+    linear-gradient(-45deg, transparent 75%, oklch(1 0 0 / 0.022) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+/* Timecode, frame counts, coordinates. Anything that updates while the
+ * playhead moves must not reflow. */
+.rm-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.rm-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.rm-scroll::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 0.1);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.rm-scroll:hover::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 0.16); background-clip: padding-box; }
