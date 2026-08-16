@@ -1,135 +1,126 @@
-# Electron Starter — React + Vite + Tailwind 4 + shadcn/ui
+# Raw Motion
 
-![Logo](./public/assets/github.png)
+An AI platform for generating motion graphics and product launch videos.
+Desktop app built on Electron 43 + React 19 + Vite 8 + Tailwind 4.
 
-A modern, production-ready Electron starter template combining React 19, Vite 8,
-Tailwind CSS 4, and shadcn/ui — with a frameless custom titlebar, a hardened main
-process, and a **customizable Windows installer** you can ship in one command.
+> **Status: foundation.** The design system, app shell and packaging pipeline
+> are in place. There is no generation pipeline yet.
 
-## ✨ Features
-
-- **⚡ Vite 8** — instant HMR and lightning builds (Rolldown-powered)
-- **⚛️ React 19** — latest React with the modern runtime
-- **🎨 Tailwind CSS 4** — CSS-first config via `@tailwindcss/vite`, no `tailwind.config.js`
-- **🧩 shadcn/ui** — accessible, themeable component primitives
-- **🖥️ Electron 43** — frameless window, custom titlebar, single-instance lock
-- **🔒 Hardened** — context isolation, sandboxed renderer, safe external-link handling
-- **📦 One-command releases** — signed NSIS installer **and** portable `.exe`
-- **🎛️ Custom installer UI** — branded welcome page, license, install-dir choice, and an
-  "Additional Tasks" page (desktop shortcut + launch-at-startup)
-- **🖼️ Auto-generated icons** — multi-resolution `.ico` and installer artwork from one PNG
-- **✅ Vitest** — unit tests wired up out of the box
-
-## 🚀 Quick Start
+## Getting started
 
 ```bash
 npm install
+```
+
+```bash
 npm run dev
 ```
 
-> First install downloads the Electron binary. If your environment blocks npm
-> install scripts, run `node node_modules/electron/install.js` once.
+Vite serves the renderer on `:5173` and Electron attaches to it with HMR.
 
-## 🛠️ Scripts
+## Scripts
 
-| Command                    | Purpose                                             |
-| -------------------------- | --------------------------------------------------- |
-| `npm run dev`              | Vite dev server + Electron with HMR                 |
-| `npm run build`            | Build the renderer to `dist/`                       |
-| `npm start`                | Run Electron against the current build              |
-| `npm test`                 | Run the Vitest suite                                |
-| `npm run icons`            | Generate `build/icon.ico` + installer BMP artwork   |
-| `npm run pack`             | Build an unpacked app in `release/win-unpacked`     |
-| `npm run release`          | **Installer + portable** `.exe` (runs icons + build)|
-| `npm run release:installer`| NSIS installer only                                 |
-| `npm run release:portable` | Portable `.exe` only                                |
+| Script            | What it does                                                      |
+| ----------------- | ----------------------------------------------------------------- |
+| `npm run dev`     | Vite dev server + Electron, concurrently                          |
+| `npm run build`   | Build the renderer into `dist/`                                   |
+| `npm test`        | Run the Vitest suite once                                         |
+| `npm run logo`    | Rasterize `public/assets/logo.svg` into the PNG logos             |
+| `npm run icons`   | Run `logo`, then regenerate `build/icon.ico` and the NSIS bitmaps |
+| `npm run pack`    | Unpacked build, for smoke-testing packaging                       |
+| `npm run release` | Windows installer + portable exe into `release/`                  |
 
-Artifacts land in `release/`:
+Release output:
 
-- `Electron Starter-Setup-<version>.exe` — the customizable installer
-- `Electron Starter-<version>-portable.exe` — the no-install portable build
+- `Raw Motion-Setup-<version>.exe` - installer with a custom Additional Tasks page
+- `Raw Motion-<version>-portable.exe` - no-install portable build
 
-## 🎨 Icons & Branding
-
-All Windows packaging art is generated from a single source: `public/assets/logo.png`.
-
-```bash
-npm run icons
-```
-
-This produces (via `scripts/generate-icons.mjs`, using `sharp` + `png-to-ico`):
-
-| File                          | Purpose                                  |
-| ----------------------------- | ---------------------------------------- |
-| `build/icon.ico`              | App + installer icon (16→256px, 7 sizes) |
-| `build/installerSidebar.bmp`  | Welcome/Finish page sidebar (164×314)    |
-| `build/installerHeader.bmp`   | Inner-page header strip (150×57)          |
-
-Swap `public/assets/logo.png` for your own logo and re-run — everything downstream
-updates. The generated `.ico`/`.bmp` files are git-ignored and rebuilt on release.
-
-## 🧩 Customizing the Installer
-
-The installer is an **assisted** NSIS build (`oneClick: false`) configured in
-`package.json` → `build.nsis`, with custom UI in [`build/installer.nsh`](./build/installer.nsh):
-
-- **Welcome page** — branded via `customWelcomePage`
-- **License page** — text in [`build/license.txt`](./build/license.txt)
-- **Choose install directory**
-- **Additional Tasks page** — a real `nsDialogs` page with two checkboxes:
-  - Create a Desktop shortcut (default on)
-  - Launch at Windows sign-in (writes an `HKCU\...\Run` value)
-- **Finish page** — optional "launch now"
-
-Edit `build/installer.nsh` to add your own checkboxes or install steps. Installer-only
-pages are guarded with `!ifndef BUILD_UNINSTALLER` (the script is parsed in both the
-installer and uninstaller compile passes).
-
-## 📁 Project Structure
+## Layout
 
 ```
-build/                 # Installer resources
-├── installer.nsh      # Custom NSIS script (welcome + tasks page)
-├── license.txt        # License shown in the installer
-└── icon.ico / *.bmp   # Generated (git-ignored)
-scripts/
-└── generate-icons.mjs # Icon + installer-art generator
 src/
-├── main/              # Electron main process
-│   ├── main.cjs       # Window, security, IPC, single-instance lock
-│   └── preload.cjs    # Context-isolated bridge (electronAPI)
-└── renderer/          # React application
-    ├── components/    # UI (shadcn) & layout (Titlebar)
-    ├── styles/        # globals.css (Tailwind 4 tokens via @theme)
-    ├── lib/           # utils + tests
-    └── App.jsx
+  main/                  Electron main process + preload bridge
+  renderer/
+    components/
+      layout/            Titlebar, Sidebar, Header
+      ui/                Design-system primitives
+    lib/                 cn(), theme store
+    styles/globals.css   Design tokens - the source of truth
+scripts/                 Packaging asset generation
+build/                   NSIS resources (icon + bitmaps are generated)
 ```
 
-## 📝 IPC / Preload API
+## Branding
 
-Exposed on `window.electronAPI` (see `src/main/preload.cjs`):
+`public/assets/logo.svg` is the single source for the app mark - a violet
+squircle plate, a frosted-glass video frame, and a solid white play glyph.
+Edit the SVG and run `npm run icons`; never hand-edit the PNGs, `.ico` or
+BMPs, since they are all generated from it.
 
-```javascript
-electronAPI.minimize();
-electronAPI.maximize();
-electronAPI.close();
-const info = await electronAPI.getAppInfo();  // { appVersion, platform, versions… }
-electronAPI.openExternal("https://example.com"); // opens in default browser
-```
+The `.ico` entries at 32px and below are cropped to the plate bounds so the
+glyph survives at taskbar and title-bar sizes - see `CROP_AT_OR_BELOW` in
+`scripts/generate-icons.mjs`.
 
-## 📦 Tech Stack
+## Design system
 
-- [Electron 43](https://www.electronjs.org/)
-- [React 19](https://react.dev/)
-- [Vite 8](https://vite.dev/)
-- [Tailwind CSS 4](https://tailwindcss.com/)
-- [shadcn/ui](https://ui.shadcn.com/)
-- [electron-builder 26](https://www.electron.build/)
+Everything visual is driven by `src/renderer/styles/globals.css`. Read that
+file before adding UI - it is the spec, not just a stylesheet.
 
-## 📄 License
+**Theming.** Class-based on `<html>`: `dark`, plus additive `oled` and
+`high-contrast`. Light is the structural default; the app boots into dark via
+an inline pre-paint guard in `index.html` (keep it there - moving it causes a
+flash). State persists to `localStorage` under the `rawmotion.*` keys.
 
-Licensed under **CC0-1.0** — public domain, unrestricted use for any purpose.
+**The rules that carry the look:**
 
-## 👨‍💻 Author
+- One neutral ramp, authored in OKLCH so the steps are perceptually even. It
+  includes a non-standard `850` step - that is the dark-mode surface, and
+  `800`/`900` cannot cover for it.
+- Two font weights, 400 and 500. No 600/700 anywhere in UI chrome.
+- Chrome is 13px, body is 15px, controls are 14px.
+- Surfaces _shift_ between themes (gray-50 → gray-850); the primary action
+  _inverts_ (black-on-white → white-on-black). It is never a hue.
+- **No borders.** No border, outline, rule, divider or hairline on any
+  surface, in any state — including a `0 0 0 1px` spread shadow, which is a
+  border in disguise. Separation comes from surface contrast, shadow and
+  spacing. The one exception is the `focus-visible` ring, which stays because
+  removing it makes the app unusable by keyboard.
+- Because there are no borders, in-flow surfaces use `bg-surface-sunken`, not
+  `bg-surface` — the latter is `#ffffff` in light mode, identical to the
+  canvas, so a card using it would be invisible. `bg-surface` is for floating
+  layers that also carry a shadow.
+- Shadows are heavier than a bordered system needs, for the same reason.
+  Verify **light** mode first; dark mode hides this failure entirely.
+- Near-zero hue. Color appears only as status tints - 20% fill with 700/200
+  text is the single status recipe.
+- Nothing animates longer than 300ms. No bounce, no spring.
+- There is no red button. Destructive intent is carried by a confirm dialog.
+- Spinners and text for loading - never skeleton bars. Don't mix the two.
 
-[Tanvir Ahmed](https://github.com/nettanvirdev)
+**Accessibility is a requirement here, not a nicety.** Every interactive
+element gets a visible `focus-visible` ring, `prefers-reduced-motion` is
+honored, and the muted palette (gray-400/500) fails contrast for body text -
+use it only for genuinely secondary information. `high-contrast` raises it.
+
+Utility naming maps to roles rather than raw colors: `bg-canvas`,
+`bg-surface-sunken`, `text-ink-muted`, `bg-wash-ghost`, `bg-row-selected`,
+`bg-action`/`text-action-fg`. Radii use the design vocabulary directly
+(`rounded-sm` = 6px … `rounded-3xl` = 32px), and type sizes are named in px
+(`text-13`, `text-15`).
+
+> **If you add a size to the px type scale, add it to `FONT_SIZES` in
+> [lib/utils.js](src/renderer/lib/utils.js) too.** `tailwind-merge` can't tell
+> `text-14` from a color, so an unregistered size silently deletes whatever
+> text color it's paired with — that shipped once as a white-on-white button
+> and 16px sidebar chrome. `utils.test.js` guards the registered sizes.
+
+## Security
+
+Context isolation on, `nodeIntegration` off, sandboxed renderer, a CSP on the
+document, a single-instance lock, and a whitelisted `http(s)`-only external
+link opener. The renderer reaches the main process only through the narrow
+`window.electronAPI` surface in `src/main/preload.cjs`.
+
+## License
+
+CC0-1.0.

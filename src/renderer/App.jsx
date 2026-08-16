@@ -1,130 +1,129 @@
 import { useEffect, useState } from "react";
-import { Zap, Palette, Rocket, Star, BookOpen, ShieldCheck } from "lucide-react";
-import { Titlebar } from "./components/layout/Titlebar";
-import { Button } from "./components/ui/button";
+import { Wand2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useTheme } from "@/lib/theme";
+import { Titlebar } from "@/components/layout/Titlebar";
+import { Sidebar, useSidebar } from "@/components/layout/Sidebar";
+import { Header } from "@/components/layout/Header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { toast } from "@/components/ui/toast";
+import { BrandMark } from "@/components/ui/brand-mark";
 
-const FEATURES = [
-  {
-    icon: Zap,
-    title: "Fast",
-    desc: "Vite 8 + HMR",
-  },
-  {
-    icon: Palette,
-    title: "Beautiful",
-    desc: "Tailwind 4 + shadcn",
-  },
-  {
-    icon: Rocket,
-    title: "Modern",
-    desc: "React 19 + Electron 43",
-  },
+// Placeholder data - the real project store lands with the first feature.
+const PROJECTS = [
+  { id: "p1", title: "Aurora - launch teaser", updated: "2h" },
+  { id: "p2", title: "Q3 feature reveal", updated: "1d" },
+  { id: "p3", title: "Logo sting v4", updated: "3d" },
 ];
 
-function App() {
+const CONTRAST_KEY = "rawmotion.highContrast";
+
+export default function App() {
   const [windowState, setWindowState] = useState("normal");
-  const [info, setInfo] = useState(null);
+  const [activeId, setActiveId] = useState(PROJECTS[0].id);
+  const { theme, setTheme } = useTheme();
+  const sidebar = useSidebar();
+
+  const [highContrast, setHighContrast] = useState(
+    () => localStorage.getItem(CONTRAST_KEY) === "true",
+  );
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("high-contrast", highContrast);
+    localStorage.setItem(CONTRAST_KEY, String(highContrast));
+  }, [highContrast]);
 
   const isMaximized =
     windowState === "maximized" || windowState === "fullscreen";
-
-  useEffect(() => {
-    window.electronAPI?.getAppInfo?.().then(setInfo).catch(() => {});
-  }, []);
-
-  const openExternal = (url) => window.electronAPI?.openExternal?.(url);
-
-  const versionChips = info
-    ? [
-        { label: "App", value: `v${info.appVersion}` },
-        { label: "Electron", value: info.versions.electron },
-        { label: "Node", value: info.versions.node },
-        { label: "Chromium", value: info.versions.chrome.split(".")[0] },
-      ]
-    : [];
+  const active = PROJECTS.find((p) => p.id === activeId);
 
   return (
     <div
-      className={`app ${
-        isMaximized ? "h-full" : "h-[calc(100%-2px)] m-[1px] rounded-[10px]"
-      } bg-background overflow-hidden flex flex-col`}
+      className={cn(
+        "flex flex-col overflow-hidden bg-canvas",
+        // Rounded corners only when the window is floating.
+        isMaximized ? "h-full" : "m-px h-[calc(100%-2px)] rounded-[10px]",
+      )}
     >
       <Titlebar
-        title="Electron Starter"
         windowState={windowState}
         onWindowStateChange={setWindowState}
       />
 
-      <main className="content flex-1 overflow-auto p-6 flex items-center justify-center">
-        <div className="text-center max-w-2xl w-full">
-          <div className="mb-6 flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-card flex items-center justify-center text-3xl shadow-lg ring-1 ring-border">
-              ⚛️
+      <div className="flex min-h-0 flex-1">
+        <Sidebar
+          {...sidebar}
+          onToggle={() => sidebar.setOpen(!sidebar.open)}
+          projects={PROJECTS}
+          activeId={activeId}
+          onSelect={setActiveId}
+          onNewProject={() => toast("New project coming soon")}
+          onOpenSettings={() => toast("Settings coming soon")}
+        />
+
+        <main className="flex min-w-0 flex-1 flex-col">
+          <Header
+            title={active?.title ?? "Raw Motion"}
+            theme={theme}
+            onThemeChange={setTheme}
+            highContrast={highContrast}
+            onHighContrastChange={setHighContrast}
+          />
+
+          {/* Content column: 58rem, centered. */}
+          <section className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-[58rem] px-8 pb-8 pt-16">
+              <StarterState />
             </div>
-          </div>
-
-          <h1 className="text-5xl font-bold mb-3 tracking-tight">
-            Electron + React
-          </h1>
-          <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-            A production-ready desktop starter — build fast, ship signed
-            installers and portable builds in one command.
-          </p>
-
-          {/* Runtime version chips */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-8 min-h-[28px]">
-            {versionChips.map((chip) => (
-              <span
-                key={chip.label}
-                className="inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-3 py-1 text-xs text-muted-foreground"
-              >
-                <span className="font-medium text-foreground/80">
-                  {chip.label}
-                </span>
-                {chip.value}
-              </span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-8">
-            {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="p-4 rounded-xl bg-secondary/40 hover:bg-secondary transition-colors flex flex-col items-center gap-2"
-              >
-                <Icon className="w-5 h-5 text-foreground/80" />
-                <p className="font-semibold text-foreground text-sm">{title}</p>
-                <p className="text-xs text-muted-foreground">{desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button
-              onClick={() =>
-                openExternal("https://github.com/nettanvirdev/electron-starter")
-              }
-            >
-              <Star className="w-4 h-4 mr-2" />
-              Star on GitHub
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => openExternal("https://www.electronjs.org/docs")}
-            >
-              <BookOpen className="w-4 h-4 mr-2" />
-              Docs
-            </Button>
-          </div>
-
-          <p className="mt-8 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Context isolation · sandboxed renderer · single-instance lock
-          </p>
-        </div>
-      </main>
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
 
-export default App;
+/** Placeholder until the generation flow exists. */
+function StarterState() {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <BrandMark className="size-6 text-ink-muted" />
+      <h2 className="mt-4 text-20 font-normal text-ink-strong">
+        What are we making?
+      </h2>
+      <p className="mt-1 text-14 text-ink-muted">
+        Describe a motion graphic or a product launch video and Raw Motion will
+        storyboard it.
+      </p>
+
+      <div className="mt-6 flex items-center gap-1.5">
+        <Button onClick={() => toast.success("Design system is wired up")}>
+          <Wand2 className="size-4" aria-hidden />
+          Generate
+        </Button>
+        <Button variant="filled">Browse templates</Button>
+      </div>
+
+      <div className="mt-10 grid w-full grid-cols-3 gap-1.5 text-start">
+        {[
+          { title: "Launch teaser", meta: "12s · 1080×1920" },
+          { title: "Feature reveal", meta: "30s · 1920×1080" },
+          { title: "Logo sting", meta: "4s · 1080×1080" },
+        ].map((preset) => (
+          <Card key={preset.title} className="p-3">
+            <p className="text-14 text-ink-strong">{preset.title}</p>
+            <p className="mt-0.5 text-12 text-ink-muted">{preset.meta}</p>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-8 flex items-center gap-1.5">
+        <Badge variant="info">Preview</Badge>
+        <span className="text-12 text-ink-muted">
+          Foundation only - no generation pipeline yet.
+        </span>
+      </div>
+    </div>
+  );
+}

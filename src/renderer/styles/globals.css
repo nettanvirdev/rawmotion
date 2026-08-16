@@ -1,128 +1,361 @@
 @import "tailwindcss";
 
-/* Tailwind v4 dark variant (opt-in via a `.dark` class on any ancestor). */
+/* Raw Motion design system.
+ *
+ * Class-based theming: `dark` on <html>. Light is the structural default;
+ * the app boots into dark (see the pre-paint guard in index.html).
+ * `oled` is an additive class that deepens the dark surfaces.
+ *
+ * The restraint IS the design: two font weights, one neutral ramp, near-zero
+ * hue, and no shadows outside genuinely floating layers.
+ */
+
 @custom-variant dark (&:where(.dark, .dark *));
 
-/*
- * Design tokens. This template ships a dark theme by default (matching the
- * frameless window chrome). Override any of these vars on `:root` for a light
- * theme, or scope a `.dark` block if you add a runtime theme toggle.
- */
+/* ------------------------------------------------------------------ *
+ * 1. The neutral ramp - the one custom scale.
+ *    Authored in OKLCH so the steps are perceptually even. The 850 step
+ *    is non-standard and load-bearing: it is the dark-mode surface.
+ * ------------------------------------------------------------------ */
 :root {
-  --radius: 0.5rem;
-
-  --background: #212121;
-  --foreground: #f5f5f5;
-
-  --card: #181818;
-  --card-foreground: #f5f5f5;
-
-  --popover: #181818;
-  --popover-foreground: #f5f5f5;
-
-  --primary: #ffffff;
-  --primary-foreground: #0a0a0a;
-
-  --secondary: #2a2a2a;
-  --secondary-foreground: #f5f5f5;
-
-  --muted: #2a2a2a;
-  --muted-foreground: #a0a0a0;
-
-  --accent: #2a2a2a;
-  --accent-foreground: #f5f5f5;
-
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-
-  --border: #2f2f2f;
-  --input: #2a2a2a;
-  --ring: #ffffff;
-
-  /* Chart colors */
-  --chart-1: #8b5cf6;
-  --chart-2: #06b6d4;
-  --chart-3: #10b981;
-  --chart-4: #f59e0b;
-  --chart-5: #ef4444;
-
-  /* Sidebar colors */
-  --sidebar: #181818;
-  --sidebar-foreground: #f5f5f5;
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: #0a0a0a;
-  --sidebar-accent: #2a2a2a;
-  --sidebar-accent-foreground: #f5f5f5;
-  --sidebar-border: transparent;
-  --sidebar-ring: #ffffff;
-
-  /* App-specific custom colors */
-  --titlebar: #181818;
+  --gray-50: oklch(0.98 0 0);
+  --gray-100: oklch(0.94 0 0);
+  --gray-200: oklch(0.92 0 0);
+  --gray-300: oklch(0.85 0 0);
+  --gray-400: oklch(0.77 0 0);
+  --gray-500: oklch(0.69 0 0);
+  --gray-600: oklch(0.51 0 0);
+  --gray-700: oklch(0.42 0 0);
+  --gray-800: oklch(0.32 0 0);
+  --gray-850: oklch(0.27 0 0);
+  --gray-900: oklch(0.2 0 0);
+  --gray-950: oklch(0.16 0 0);
 }
 
-/* Map the design tokens to Tailwind's theme so utilities like `bg-background`,
- * `text-muted-foreground`, `border-border`, `rounded-lg` resolve correctly. */
+/* OLED deepens four steps; every surface token rides along for free. */
+.oled {
+  --gray-800: #101010;
+  --gray-850: #050505;
+  --gray-900: #000000;
+  --gray-950: #000000;
+}
+
+/* ------------------------------------------------------------------ *
+ * 2. Semantic roles - light (default)
+ * ------------------------------------------------------------------ */
+:root {
+  --canvas: #ffffff;
+  --canvas-chat: #ffffff;
+  --sidebar: color-mix(in oklch, var(--gray-50) 70%, transparent);
+  --surface: #ffffff;
+  --surface-sunken: var(--gray-50);
+  --surface-modal: #ffffff;
+  --surface-dialog: #ffffff;
+  --surface-menu: #ffffff;
+  --surface-code: #ffffff;
+
+  --ink: #000000;
+  --ink-body: var(--gray-700);
+  --ink-strong: var(--gray-800);
+  --ink-muted: var(--gray-500);
+  --ink-faint: var(--gray-400);
+  --ink-placeholder: var(--gray-400);
+
+  --wash-strong: var(--gray-50);
+  --wash-soft: color-mix(in oklch, var(--gray-50) 40%, transparent);
+  --wash-ghost: rgb(0 0 0 / 0.05);
+  --row-selected: rgb(0 0 0 / 0.035);
+
+  --backdrop: rgb(0 0 0 / 0.45);
+
+  /* The primary action INVERTS between themes. It is never a hue. */
+  --action: #000000;
+  --action-fg: #ffffff;
+  --action-hover: var(--gray-900);
+
+  --focus: var(--gray-400);
+  --scrollbar-thumb: rgba(215, 215, 215, 0.6);
+
+  /* Frameless-window chrome (Electron-specific, not in the base spec). */
+  --titlebar: var(--gray-50);
+
+  /* User-tunable */
+  --sidebar-width: 245px;
+  --app-text-scale: 1;
+
+  color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ *
+ * 3. Semantic roles - dark
+ *    Surfaces SHIFT rather than invert: gray-50 → gray-850, not gray-900.
+ *    Muted text goes LIGHTER (gray-500 → gray-400) - lower contrast by intent.
+ * ------------------------------------------------------------------ */
+.dark {
+  --canvas: #171717;
+  --canvas-chat: var(--gray-900);
+  --sidebar: color-mix(in oklch, var(--gray-950) 70%, transparent);
+  --surface: var(--gray-850);
+  --surface-sunken: var(--gray-850);
+  --surface-modal: var(--gray-900);
+  --surface-dialog: var(--gray-950);
+  --surface-menu: var(--gray-850);
+  --surface-code: #000000;
+
+  --ink: #eeeeee;
+  --ink-body: var(--gray-300);
+  --ink-strong: #ffffff;
+  --ink-muted: var(--gray-400);
+  --ink-faint: var(--gray-600);
+  --ink-placeholder: var(--gray-400);
+
+  --wash-strong: var(--gray-900);
+  --wash-soft: color-mix(in oklch, var(--gray-800) 40%, transparent);
+  --wash-ghost: rgb(255 255 255 / 0.05);
+  --row-selected: rgb(255 255 255 / 0.045);
+
+  --backdrop: rgb(0 0 0 / 0.6);
+
+  --action: #ffffff;
+  --action-fg: #000000;
+  --action-hover: var(--gray-100);
+
+  --focus: var(--gray-500);
+  --scrollbar-thumb: rgba(67, 67, 67, 0.6);
+
+  --titlebar: var(--gray-950);
+
+  color-scheme: dark;
+}
+
+.dark.oled {
+  --canvas: #000000;
+  --titlebar: #000000;
+}
+
+/* ------------------------------------------------------------------ *
+ * 4. Map roles onto Tailwind's theme.
+ *    `inline` keeps the utility pointing at the var, so a theme class
+ *    swap re-resolves every utility at runtime with no rebuild.
+ * ------------------------------------------------------------------ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-850: var(--gray-850);
+  --color-gray-900: var(--gray-900);
+  --color-gray-950: var(--gray-950);
 
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-
+  --color-canvas: var(--canvas);
+  --color-canvas-chat: var(--canvas-chat);
   --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-modal: var(--surface-modal);
+  --color-surface-dialog: var(--surface-dialog);
+  --color-surface-menu: var(--surface-menu);
+  --color-surface-code: var(--surface-code);
 
+  --color-ink: var(--ink);
+  --color-ink-body: var(--ink-body);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-placeholder: var(--ink-placeholder);
+
+  --color-wash-strong: var(--wash-strong);
+  --color-wash-soft: var(--wash-soft);
+  --color-wash-ghost: var(--wash-ghost);
+  --color-row-selected: var(--row-selected);
+
+  --color-action: var(--action);
+  --color-action-fg: var(--action-fg);
+  --color-action-hover: var(--action-hover);
+
+  --color-focus: var(--focus);
   --color-titlebar: var(--titlebar);
 
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  /* Status accents. Identical in both themes - the only hue in the system. */
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-200: #bfdbfe;
+  --color-sky-200: #bae6fd;
+  --color-sky-300: #7dd3fc;
+  --color-sky-500: #0ea5e9;
+  --color-sky-800: #075985;
+  --color-green-200: #bbf7d0;
+  --color-green-500: #22c55e;
+  --color-green-700: #15803d;
+  --color-yellow-200: #fef08a;
+  --color-yellow-500: #eab308;
+  --color-yellow-700: #a16207;
+  --color-red-200: #fecaca;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+
+  /* Type scale, named in px because the spec is. */
+  --text-10: 0.625rem;
+  --text-11: 0.6875rem;
+  --text-12: 0.75rem;
+  --text-13: 0.8125rem;
+  --text-13--line-height: 1.25rem;
+  --text-14: 0.875rem;
+  --text-15: 0.9375rem;
+  --text-16: 1rem;
+  --text-18: 1.125rem;
+  --text-20: 1.25rem;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Inter", ui-sans-serif, system-ui,
+    "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
+    "Noto Color Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  /* 2 / 6 / 8 / 12 / 16 / 24 / 32 - the whole radius vocabulary. */
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+
+  /* This system has NO borders, rules or outlines - see the note in §5.
+   * Separation therefore comes from surface contrast plus these shadows.
+   * They are deliberately heavier than a bordered system would need,
+   * because in light mode a white menu on a white canvas has nothing else
+   * to separate it. Do not lighten them without adding contrast elsewhere. */
+  /* Note: no `0 0 0 Npx` spread layer here. A zero-blur spread shadow is a
+   * hairline border wearing a different hat, and this system has none. */
+  --shadow-menu:
+    0 14px 28px -6px rgb(0 0 0 / 0.22), 0 6px 12px -6px rgb(0 0 0 / 0.16),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-tooltip:
+    0 20px 25px -5px rgb(0 0 0 / 0.22), 0 8px 10px -6px rgb(0 0 0 / 0.16);
+  --shadow-modal:
+    0 30px 60px -12px rgb(0 0 0 / 0.45), 0 8px 24px -8px rgb(0 0 0 / 0.25);
+
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out-soft: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-shimmer: cubic-bezier(0.7, 0, 1, 0.4);
+
+  --animate-fly-and-scale: fly-and-scale 200ms cubic-bezier(0.33, 1, 0.68, 1);
+  --animate-spin-fast: spin 0.75s linear infinite;
+  --animate-typing-dot: typing-dot 1.5s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.5s infinite;
 }
 
+/* Nothing exceeds 300ms. No bounce, no spring. */
+:root {
+  --duration-instant: 10ms;
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-modal: 200ms;
+  --duration-panel: 250ms;
+  --duration-slow: 300ms;
+
+  --z-sticky: 10;
+  --z-resizer: 20;
+  --z-header: 30;
+  --z-backdrop: 40;
+  --z-sidebar: 50;
+  --z-drawer: 999;
+  --z-modal: 9999;
+  --z-toast: 10000;
+  --z-confirm: 10001;
+}
+
+@keyframes fly-and-scale {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes typing-dot {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 5. Base
+ * ------------------------------------------------------------------ */
 @layer base {
-  * {
-    @apply border-border;
+  /* No borders, rules, outlines or hairlines anywhere in this system.
+   *
+   * Tailwind's preflight already sets border-width:0, so nothing draws an
+   * edge unless a `border-*` utility is added - don't add one. Separation
+   * is carried by surface contrast, shadows and spacing instead.
+   *
+   * The ONE exception is the focus-visible ring below. It is an outline, and
+   * it stays: without it the app is unusable by keyboard. It is invisible to
+   * pointer users, so it costs the look nothing.
+   */
+
+  html {
+    /* User UI-scale control; rescales the entire rem-based system. */
+    font-size: calc(1rem * var(--app-text-scale));
   }
 
   html,
   body {
-    @apply h-full bg-transparent text-foreground antialiased overflow-hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+    @apply h-full bg-transparent text-ink antialiased overflow-hidden;
+    font-family: var(--font-sans);
   }
 
   #root {
     @apply h-full;
   }
+
+  /* Required on every interactive element - the reference system omits it. */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--wash-ghost);
+  }
+
+  /* Numbers that update live must not jitter. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-/* Titlebar dragging (Electron frameless window) */
+/* ------------------------------------------------------------------ *
+ * 6. Electron frameless-window chrome
+ * ------------------------------------------------------------------ */
 .titlebar-drag {
   -webkit-app-region: drag;
 }
@@ -131,10 +364,12 @@
   -webkit-app-region: no-drag;
 }
 
-/* Custom scrollbar */
+/* ------------------------------------------------------------------ *
+ * 7. Scrollbars - 7px, hidden until the container is interacted with
+ * ------------------------------------------------------------------ */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
@@ -142,11 +377,112 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted);
+  background: transparent;
   border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
-  opacity: 0.7;
+:hover::-webkit-scrollbar-thumb,
+:focus-within::-webkit-scrollbar-thumb,
+:active::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. Utility patterns from the spec
+ * ------------------------------------------------------------------ */
+
+/* Deliberate half-pixel corrections. Skipping these makes labels sit
+ * visibly high next to their icons. */
+.nudge-label {
+  transform: translateY(0.5px);
+}
+
+.nudge-chevron {
+  transform: translateY(1px);
+}
+
+/* Header legibility comes from a gradient scrim, not a solid bar, so
+ * content can scroll underneath it. */
+.header-scrim {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--canvas) 90%, transparent) 0%,
+    color-mix(in oklch, var(--canvas) 50%, transparent) 40%,
+    transparent 97%
+  );
+}
+
+.shimmer-text {
+  background: linear-gradient(110deg, #b4b4b4 0%, #e8e8e8 50%, #b4b4b4 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-shimmer);
+}
+
+.dark .shimmer-text {
+  background-image: linear-gradient(
+    110deg,
+    #9a9a9a 0%,
+    #5e5e5e 50%,
+    #9a9a9a 100%
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. High-contrast mode.
+ *    The muted palette is decorative-weight - gray-400/500 land near 2–3:1
+ *    and fail for body text. This raises them. Defined at :where()
+ *    specificity so hover variants still win.
+ * ------------------------------------------------------------------ */
+:where(.high-contrast) {
+  --ink-muted: var(--gray-600);
+  --ink-faint: var(--gray-600);
+  --ink-placeholder: var(--gray-600);
+  --row-selected: rgb(0 0 0 / 0.07);
+}
+
+:where(.dark.high-contrast) {
+  --ink-muted: var(--gray-400);
+  --ink-faint: var(--gray-400);
+  --ink-placeholder: var(--gray-400);
+  --row-selected: rgb(255 255 255 / 0.09);
+}
+
+/* Reveal-on-hover affordances become permanent. */
+.high-contrast .reveal-on-hover {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.high-contrast .shimmer-text {
+  background: none;
+  color: var(--gray-700);
+  animation: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * 10. Reduced motion. Loading states must stay legible without motion.
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

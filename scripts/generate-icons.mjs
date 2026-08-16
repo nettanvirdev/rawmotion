@@ -68,22 +68,37 @@ function encodeBmp24(rgba, width, height) {
 
 async function writeBmpFromSharp(pipeline, width, height, out) {
   const { data } = await pipeline
-    .flatten({ background: "#181818" })
+    .flatten({ background: "#0d0d0d" })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
   writeFileSync(out, encodeBmp24(data, width, height));
 }
 
+/**
+ * The mark is drawn with the plate inset ~17% inside a 1024 canvas, which
+ * leaves room for its drop shadow. At 16–32px that padding costs more than
+ * the shadow is worth - the glyph shrinks to a few pixels. So the small
+ * entries are cropped to the plate bounds and rendered edge-to-edge, which
+ * is what Windows shows in the taskbar and title bar.
+ */
+const PLATE = { left: 160, top: 160, width: 704, height: 704 };
+const CROP_AT_OR_BELOW = 32;
+
 async function generateIco() {
   const sizes = [16, 24, 32, 48, 64, 128, 256];
   const pngs = await Promise.all(
-    sizes.map((s) =>
-      sharp(SOURCE)
-        .resize(s, s, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    sizes.map((s) => {
+      const pipeline = sharp(SOURCE);
+      if (s <= CROP_AT_OR_BELOW) pipeline.extract(PLATE);
+      return pipeline
+        .resize(s, s, {
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        })
         .png()
-        .toBuffer()
-    )
+        .toBuffer();
+    }),
   );
   const ico = await pngToIco(pngs);
   writeFileSync(resolve(buildDir, "icon.ico"), ico);
@@ -94,30 +109,38 @@ async function generateSidebar() {
   const W = 164;
   const H = 314;
   const logoSize = 96;
-  const logo = await sharp(SOURCE).resize(logoSize, logoSize, { fit: "contain" }).png().toBuffer();
+  const logo = await sharp(SOURCE)
+    .resize(logoSize, logoSize, { fit: "contain" })
+    .png()
+    .toBuffer();
 
   const bg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
        <defs>
          <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-           <stop offset="0" stop-color="#232323"/>
-           <stop offset="1" stop-color="#141414"/>
+           <stop offset="0" stop-color="#262626"/>
+           <stop offset="1" stop-color="#0d0d0d"/>
          </linearGradient>
        </defs>
        <rect width="${W}" height="${H}" fill="url(#g)"/>
-       <text x="${W / 2}" y="180" text-anchor="middle" fill="#f5f5f5"
-             font-family="Segoe UI, sans-serif" font-size="15" font-weight="600">Electron</text>
-       <text x="${W / 2}" y="200" text-anchor="middle" fill="#f5f5f5"
-             font-family="Segoe UI, sans-serif" font-size="15" font-weight="600">Starter</text>
-       <text x="${W / 2}" y="296" text-anchor="middle" fill="#8a8a8a"
+       <text x="${W / 2}" y="180" text-anchor="middle" fill="#eeeeee"
+             font-family="Segoe UI, sans-serif" font-size="15" font-weight="500">Raw</text>
+       <text x="${W / 2}" y="200" text-anchor="middle" fill="#eeeeee"
+             font-family="Segoe UI, sans-serif" font-size="15" font-weight="500">Motion</text>
+       <text x="${W / 2}" y="296" text-anchor="middle" fill="#9b9b9b"
              font-family="Segoe UI, sans-serif" font-size="10">nettanvir.dev</text>
-     </svg>`
+     </svg>`,
   );
 
   const pipeline = sharp(bg).composite([
     { input: logo, top: 40, left: Math.round((W - logoSize) / 2) },
   ]);
-  await writeBmpFromSharp(pipeline, W, H, resolve(buildDir, "installerSidebar.bmp"));
+  await writeBmpFromSharp(
+    pipeline,
+    W,
+    H,
+    resolve(buildDir, "installerSidebar.bmp"),
+  );
   console.log("✓ build/installerSidebar.bmp");
 }
 
@@ -125,20 +148,28 @@ async function generateHeader() {
   const W = 150;
   const H = 57;
   const logoSize = 40;
-  const logo = await sharp(SOURCE).resize(logoSize, logoSize, { fit: "contain" }).png().toBuffer();
+  const logo = await sharp(SOURCE)
+    .resize(logoSize, logoSize, { fit: "contain" })
+    .png()
+    .toBuffer();
 
   const bg = Buffer.from(
     `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-       <rect width="${W}" height="${H}" fill="#181818"/>
-       <text x="58" y="34" fill="#f5f5f5" font-family="Segoe UI, sans-serif"
-             font-size="13" font-weight="600">Electron</text>
-     </svg>`
+       <rect width="${W}" height="${H}" fill="#0d0d0d"/>
+       <text x="58" y="34" fill="#eeeeee" font-family="Segoe UI, sans-serif"
+             font-size="13" font-weight="500">Raw Motion</text>
+     </svg>`,
   );
 
   const pipeline = sharp(bg).composite([
     { input: logo, top: Math.round((H - logoSize) / 2), left: 10 },
   ]);
-  await writeBmpFromSharp(pipeline, W, H, resolve(buildDir, "installerHeader.bmp"));
+  await writeBmpFromSharp(
+    pipeline,
+    W,
+    H,
+    resolve(buildDir, "installerHeader.bmp"),
+  );
   console.log("✓ build/installerHeader.bmp");
 }
 

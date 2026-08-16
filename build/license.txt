@@ -1,4 +1,4 @@
-Electron Starter
+Raw Motion
 Copyright (C) 2026 Tanvir Ahmed
 
 This software is released into the public domain under the Creative Commons

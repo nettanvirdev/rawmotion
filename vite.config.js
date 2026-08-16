@@ -3,12 +3,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
+const root = import.meta.dirname;
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   root: "src/renderer",
   // Serve project-level /public assets (logos, icons) in dev and copy them on build
-  publicDir: path.resolve(__dirname, "public"),
+  publicDir: path.resolve(root, "public"),
   // Relative base so the built app loads correctly via file:// inside Electron
   base: "./",
   build: {
@@ -19,7 +21,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src/renderer"),
+      "@": path.resolve(root, "./src/renderer"),
     },
   },
   server: {

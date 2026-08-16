@@ -1,5 +1,5 @@
 ; ============================================================================
-;  Custom NSIS installer script for Electron Starter
+;  Custom NSIS installer script for Raw Motion
 ;  Loaded by electron-builder via  build.nsis.include
 ;
 ;  Adds:
@@ -36,7 +36,7 @@
   ; -------------------------------------------------------------------------
   !macro customWelcomePage
     !define MUI_WELCOMEPAGE_TITLE "Welcome to ${PRODUCT_NAME} Setup"
-    !define MUI_WELCOMEPAGE_TEXT "This wizard will install ${PRODUCT_NAME} ${VERSION} on your computer.$\r$\n$\r$\nA modern Electron + React desktop app template.$\r$\n$\r$\nClick Next to continue."
+    !define MUI_WELCOMEPAGE_TEXT "This wizard will install ${PRODUCT_NAME} ${VERSION} on your computer.$\r$\n$\r$\nAI-generated motion graphics and product launch videos.$\r$\n$\r$\nClick Next to continue."
     !insertmacro MUI_PAGE_WELCOME
   !macroend
 
@@ -48,7 +48,7 @@
   !macroend
 
   Function AdditionalTasksPageCreate
-    ; MUI_HEADER_TEXT is intentionally not used — this file is parsed before
+    ; MUI_HEADER_TEXT is intentionally not used - this file is parsed before
     ; MUI2.nsh is loaded, so that macro is not yet defined. We draw an in-dialog
     ; title instead.
     nsDialogs::Create 1018

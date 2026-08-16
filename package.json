@@ -1,7 +1,7 @@
 {
-  "name": "electron-starter",
-  "version": "2.0.0",
-  "description": "A modern, production-ready Electron starter template with React 19 + Vite 8 + Tailwind 4 + shadcn/ui",
+  "name": "raw-motion",
+  "version": "0.1.0",
+  "description": "Raw Motion - an AI platform for generating motion graphics and product launch videos",
   "main": "src/main/main.cjs",
   "type": "module",
   "scripts": {
@@ -13,67 +13,63 @@
     "start": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "icons": "node scripts/generate-icons.mjs",
+    "logo": "node scripts/generate-logo.mjs",
+    "icons": "npm run logo && node scripts/generate-icons.mjs",
     "pack": "npm run build && electron-builder --dir",
     "release": "npm run icons && npm run build && electron-builder --win nsis portable",
     "release:installer": "npm run icons && npm run build && electron-builder --win nsis",
     "release:portable": "npm run icons && npm run build && electron-builder --win portable",
-    "release:ci": "npm run icons && npm run build && electron-builder --win nsis portable --publish always",
     "dist": "npm run release",
     "reset": "git reset --hard"
   },
-  "repository": "https://github.com/nettanvirdev/electron-starter",
+  "repository": "https://github.com/nettanvirdev/raw-motion",
   "keywords": [
+    "raw-motion",
+    "ai",
+    "motion-graphics",
+    "video",
     "electron",
     "react",
     "vite",
     "tailwindcss",
-    "shadcn",
-    "starter",
-    "template",
-    "desktop",
-    "app"
+    "desktop"
   ],
   "author": "Tanvir Ahmed <contact@nettanvir.dev> (https://github.com/nettanvirdev)",
   "license": "CC0-1.0",
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "@vitejs/plugin-react": "^6.0.4",
-    "concurrently": "^10.0.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
-    "electron": "^43.2.0",
-    "electron-builder": "^26.0.12",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "png-to-ico": "^3.0.2",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
-    "vite": "^8.1.5",
+    "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@radix-ui/react-slot": "^1.3.1",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dropdown-menu": "^2.1.24",
+    "@radix-ui/react-slot": "^1.3.3",
+    "@radix-ui/react-tooltip": "^1.2.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.26.0",
+    "lucide-react": "^1.31.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0"
   },
   "build": {
-    "appId": "com.nettanvir.electronstarter",
-    "productName": "Electron Starter",
+    "appId": "com.nettanvir.rawmotion",
+    "productName": "Raw Motion",
     "copyright": "Copyright © 2026 Tanvir Ahmed",
     "directories": {
       "output": "release",
       "buildResources": "build"
     },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "nettanvirdev",
-        "repo": "electron-starter",
-        "releaseType": "release"
-      }
-    ],
     "files": [
       "dist/**/*",
       "src/main/**/*",
@@ -108,7 +104,7 @@
       "createDesktopShortcut": false,
       "createStartMenuShortcut": true,
       "menuCategory": false,
-      "shortcutName": "Electron Starter",
+      "shortcutName": "Raw Motion",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
       "installerIcon": "build/icon.ico",
@@ -120,7 +116,7 @@
       "license": "build/license.txt",
       "include": "build/installer.nsh",
       "artifactName": "${productName}-Setup-${version}.${ext}",
-      "uninstallDisplayName": "Electron Starter ${version}"
+      "uninstallDisplayName": "Raw Motion ${version}"
     }
   }
 }

@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 // Expose a small, safe API to the renderer. Everything crosses the context
-// bridge — the renderer never touches Node or ipcRenderer directly.
+// bridge - the renderer never touches Node or ipcRenderer directly.
 contextBridge.exposeInMainWorld("electronAPI", {
   // Window control functions
   minimize: () => ipcRenderer.send("window-minimize"),
