@@ -341,7 +341,11 @@ export const SliderField: React.FC<{
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
       onPointerUp={onCommit}
-      className="h-7 w-full cursor-pointer accent-[var(--rm-accent)]"
+      className="rm-range w-full cursor-pointer"
+      style={{
+        // Drives the filled portion of the custom track - see globals.css §7.
+        ["--rm-range-fill" as never]: `${((value - min) / Math.max(1e-9, max - min)) * 100}%`,
+      }}
     />
     <NumberField
       value={value}

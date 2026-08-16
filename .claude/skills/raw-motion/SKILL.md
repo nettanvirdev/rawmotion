@@ -113,6 +113,14 @@ wrong; usually the right answer is a different cell.
   narrative movement ("meanwhile"), `circle` for a big reveal, `spin` and
   `glitch` only on high-energy pieces, `none` before an outro. Remember a
   transition *overlaps* the scenes, so it shortens the film.
+- **Transitions double-expose.** During `fade`/`blur`/`zoom`, the outgoing
+  scene stays visible underneath while the incoming one fades up. Two rules
+  follow: (1) every scene that is faded *into* needs its own opaque
+  background layer, or the previous scene shows through it permanently;
+  (2) do not place incoming and outgoing content in the same layout band
+  across a crossfade - a heading fading up over the previous scene's toolbar
+  reads as a glitch. Same band on both sides of a cut? Use `wipe`, `push` or
+  `circle`, which reveal by edge instead of by blend.
 - "Morph" moments (a pen becoming a sugarcane, an icon becoming a product):
   the engine does not interpolate SVG paths, so build it as a **crossfade in
   motion** - both layers share the same layout cell, the outgoing layer exits

@@ -618,7 +618,11 @@ export const GlassBar: React.FC<GlassBarProps> = ({
   const position = mix(slide, 0, target);
 
   const padX = fontSize * 1.15;
-  const itemWidth = fontSize * 6.2;
+  // Sized from the longest label rather than a constant: a fixed width
+  // overflows long labels and strands short ones in an oversized pill. The
+  // 0.56 factor approximates average glyph width at this weight.
+  const longest = labels.reduce((max, label) => Math.max(max, label.length), 1);
+  const itemWidth = Math.max(fontSize * 4.2, longest * fontSize * 0.56 + padX * 2);
 
   return (
     <div
