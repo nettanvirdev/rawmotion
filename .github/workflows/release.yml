@@ -1,0 +1,77 @@
+name: Release (Windows)
+
+# Builds the Windows portable executable and the installer, then publishes
+# them to a GitHub Release.
+#
+# This runs on `windows-latest` rather than cross-building from Linux for a
+# specific reason: @remotion/renderer spawns a native compositor binary,
+# shipped as a per-platform optional dependency. A Linux runner installs
+# `compositor-linux-x64-gnu`, and a package built there would ship a
+# compositor the target machine cannot execute - so rendering would fail on
+# the user's box while the app itself started fine. Building on the target
+# platform is what makes the artifact real.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+        default: "v0.1.0"
+      prerelease:
+        description: "Mark as a pre-release"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Icons first: the installer config references build/icon.ico and the
+      # two installer bitmaps, all of which are generated rather than
+      # committed.
+      - name: Build
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List artifacts
+        shell: bash
+        run: ls -la release/ || true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: Raw Motion ${{ github.event.inputs.tag || github.ref_name }}
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          generate_release_notes: true
+          files: |
+            release/*.exe
+            release/*.blockmap
+            release/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
