@@ -11,20 +11,22 @@
  * different from its key.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
   Command as CommandIcon,
   Film,
+  Menu as MenuIcon,
   PanelBottom,
   PanelLeft,
   PanelRight,
   Redo2,
+  Settings as SettingsIcon,
   Undo2,
 } from "lucide-react";
 import type { Project } from "@shared/project.js";
 import { projectDurationInFrames, sceneTimings } from "@shared/project.js";
-import { bridge, errorMessage } from "@/lib/bridge";
+import { bridge, errorMessage, type ProjectSummary } from "@/lib/bridge";
 import { useShortcuts, type Binding } from "@/lib/shortcuts";
 import { useEditorStore } from "@/state/editorStore";
 import { useProjectStore } from "@/state/projectStore";
@@ -47,7 +49,9 @@ export const EditorShell: React.FC<{
   dirName: string;
   project: Project;
   onCloseProject: () => void;
-}> = ({ dirName, project, onCloseProject }) => {
+  onNewProject: () => void;
+  onOpened: (dirName: string, project: Project) => void;
+}> = ({ dirName, project, onCloseProject, onNewProject, onOpened }) => {
   const editor = useEditorStore();
   const projectStore = useProjectStore();
   const renderStore = useRenderStore();
@@ -107,6 +111,31 @@ export const EditorShell: React.FC<{
       recordUserOperation(`Queued ${choice.format.toUpperCase()} render`);
     } catch (error) {
       setRenderOpen(false);
+      setNotice(errorMessage(error));
+    }
+  };
+
+  /** Save first, then hand control back to App - leaving the editor must
+   *  never cost the user their last edit. */
+  const saveThen = async (next: () => void) => {
+    try {
+      await useProjectStore.getState().save();
+    } catch {
+      // A failed save must not trap the user in the editor.
+    }
+    next();
+  };
+
+  const closeProject = () => void saveThen(onCloseProject);
+  const newProject = () => void saveThen(onNewProject);
+
+  const openOther = async (dir: string) => {
+    try {
+      await useProjectStore.getState().save();
+      await bridge.project.close().catch(() => {});
+      const result = await bridge.project.open(dir);
+      onOpened(result.dirName, result.project);
+    } catch (error) {
       setNotice(errorMessage(error));
     }
   };
@@ -194,9 +223,10 @@ export const EditorShell: React.FC<{
       { id: "left", group: "View", label: "Toggle left panel", keys: "mod+b", run: editor.toggleLeft },
       { id: "inspector", group: "View", label: "Toggle inspector", keys: "mod+alt+b", run: editor.toggleInspector },
 
+      { id: "new-project", group: "Project", label: "New project…", run: newProject },
       { id: "reveal", group: "Project", label: "Reveal project folder", run: () => void bridge.workspace.reveal(dirName).catch((e) => setNotice(errorMessage(e))) },
       { id: "settings", group: "Project", label: "Settings…", keys: "mod+,", run: () => setSettingsOpen(true) },
-      { id: "close", group: "Project", label: "Close project", run: onCloseProject },
+      { id: "close", group: "Project", label: "Close project", keys: "mod+w", run: closeProject },
     ],
     // Rebuilt whenever anything a command closes over changes. The array is
     // small and this runs on state changes, not per frame.
@@ -283,6 +313,21 @@ export const EditorShell: React.FC<{
         onRedo={redo}
         onRender={() => setRenderOpen(true)}
         onOpenPalette={() => editor.setCommandPaletteOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        menu={
+          <AppMenu
+            currentDir={dirName}
+            onNewProject={newProject}
+            onOpenProject={(dir) => void openOther(dir)}
+            onCloseProject={closeProject}
+            onImport={() => void importMedia()}
+            onReveal={() =>
+              void bridge.workspace.reveal(dirName).catch((e) => setNotice(errorMessage(e)))
+            }
+            onExport={() => setRenderOpen(true)}
+            onSettings={() => setSettingsOpen(true)}
+          />
+        }
       />
 
       {notice ? <Notice message={notice} onDismiss={() => setNotice(null)} /> : null}
@@ -351,6 +396,8 @@ const Toolbar: React.FC<{
   onRedo: () => void;
   onRender: () => void;
   onOpenPalette: () => void;
+  onOpenSettings: () => void;
+  menu: React.ReactNode;
 }> = ({
   project,
   running,
@@ -362,11 +409,14 @@ const Toolbar: React.FC<{
   onRedo,
   onRender,
   onOpenPalette,
+  onOpenSettings,
+  menu,
 }) => {
   const editor = useEditorStore();
 
   return (
     <div className="rm-panel rm-hairline-b flex h-10 shrink-0 items-center gap-1 px-2">
+      {menu}
       <IconButton title="Toggle left panel" onClick={editor.toggleLeft} active={editor.leftOpen}>
         <PanelLeft className="size-4" />
       </IconButton>
@@ -426,6 +476,10 @@ const Toolbar: React.FC<{
         Render
       </button>
 
+      <IconButton title="Settings" onClick={onOpenSettings}>
+        <SettingsIcon className="size-4" />
+      </IconButton>
+
       <IconButton
         title="Toggle inspector"
         onClick={editor.toggleInspector}
@@ -433,6 +487,122 @@ const Toolbar: React.FC<{
       >
         <PanelRight className="size-4" />
       </IconButton>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * App menu
+ *
+ * The one drop-down in the editor: project-level actions that a standard
+ * application would keep in a File menu. Everything here is also in the
+ * command palette; this exists because a menu you can see beats a palette
+ * you have to know about.
+ * ------------------------------------------------------------------ */
+
+const AppMenu: React.FC<{
+  currentDir: string;
+  onNewProject: () => void;
+  onOpenProject: (dirName: string) => void;
+  onCloseProject: () => void;
+  onImport: () => void;
+  onReveal: () => void;
+  onExport: () => void;
+  onSettings: () => void;
+}> = ({
+  currentDir,
+  onNewProject,
+  onOpenProject,
+  onCloseProject,
+  onImport,
+  onReveal,
+  onExport,
+  onSettings,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    bridge.workspace
+      .list()
+      .then(setProjects)
+      .catch(() => setProjects([]));
+
+    const onDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const item = (label: string, run: () => void, hint?: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        setOpen(false);
+        run();
+      }}
+      className="flex w-full items-center justify-between rounded-[5px] px-2 py-1.5 text-left text-[12px] text-[var(--rm-text)] transition-colors duration-100 hover:bg-[var(--rm-chrome-high)]"
+    >
+      <span>{label}</span>
+      {hint ? <span className="ml-6 text-[10px] text-[var(--rm-text-faint)]">{hint}</span> : null}
+    </button>
+  );
+
+  const divider = <div className="mx-2 my-1 h-px bg-[var(--rm-line)]" />;
+
+  const others = projects.filter((p) => p.dirName !== currentDir && !p.broken).slice(0, 6);
+
+  return (
+    <div ref={ref} className="relative">
+      <IconButton title="Menu" onClick={() => setOpen((o) => !o)} active={open}>
+        <MenuIcon className="size-4" />
+      </IconButton>
+
+      {open ? (
+        <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[240px] rounded-[10px] bg-[var(--rm-chrome)] p-1.5 shadow-[0_24px_48px_-12px_rgb(0_0_0/0.6),0_6px_16px_-6px_rgb(0_0_0/0.4)]">
+          {item("New project…", onNewProject)}
+          {item("Close project", onCloseProject, "back to launcher")}
+
+          {others.length ? (
+            <>
+              {divider}
+              <p className="px-2 pb-1 pt-1.5 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--rm-text-faint)]">
+                Open recent
+              </p>
+              {others.map((p) => (
+                <button
+                  key={p.dirName}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenProject(p.dirName);
+                  }}
+                  className="block w-full truncate rounded-[5px] px-2 py-1.5 text-left text-[12px] text-[var(--rm-text-dim)] transition-colors duration-100 hover:bg-[var(--rm-chrome-high)] hover:text-[var(--rm-text)]"
+                >
+                  {p.name}
+                </button>
+              ))}
+            </>
+          ) : null}
+
+          {divider}
+          {item("Import media…", onImport)}
+          {item("Reveal project folder", onReveal)}
+          {divider}
+          {item("Export video…", onExport, "Ctrl+Shift+R")}
+          {item("Settings…", onSettings, "Ctrl+,")}
+        </div>
+      ) : null}
     </div>
   );
 };

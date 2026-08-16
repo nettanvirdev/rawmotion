@@ -21,6 +21,9 @@ import { cn } from "@/lib/utils";
 
 export default function App() {
   const [windowState, setWindowState] = useState("normal");
+  // Set when "New project" is chosen from inside the editor, so the launcher
+  // opens straight onto the create form instead of the recent list.
+  const [createOnLaunch, setCreateOnLaunch] = useState(false);
   const dirName = useProjectStore((s) => s.dirName);
   const project = useProjectStore((s) => s.project);
   const load = useProjectStore((s) => s.load);
@@ -36,6 +39,7 @@ export default function App() {
 
   const onOpened = useCallback(
     (nextDirName: string, nextProject: Project) => {
+      setCreateOnLaunch(false);
       load(nextDirName, nextProject);
       // A freshly opened project should show its first frame, not wherever
       // the playhead happened to be in the last one.
@@ -50,7 +54,14 @@ export default function App() {
       // Closing is best-effort: the main process may already have released
       // the watcher. Failing here must not trap the user in the editor.
     });
+    setCreateOnLaunch(false);
     closeProject();
+  }, [closeProject]);
+
+  const onNewProject = useCallback(() => {
+    void bridge.project.close().catch(() => {});
+    closeProject();
+    setCreateOnLaunch(true);
   }, [closeProject]);
 
   const isMaximized = windowState === "maximized" || windowState === "fullscreen";
@@ -60,7 +71,11 @@ export default function App() {
   return (
     <div
       className={cn(
-        "flex h-full flex-col overflow-hidden bg-[var(--rm-void)]",
+        // `rm-editor` here, not just in the shells below: the titlebar and
+        // this root paint with `--rm-*` tokens, and those are only defined
+        // under the class. Without it their backgrounds resolve to nothing
+        // and the transparent window shows the desktop through the chrome.
+        "rm-editor flex h-full flex-col overflow-hidden bg-[var(--rm-void)]",
         isMaximized ? "h-full" : "m-px h-[calc(100%-2px)] rounded-[10px]",
       )}
     >
@@ -77,9 +92,11 @@ export default function App() {
             dirName={dirName}
             project={project}
             onCloseProject={onCloseProject}
+            onNewProject={onNewProject}
+            onOpened={onOpened}
           />
         ) : (
-          <Launcher onOpened={onOpened} />
+          <Launcher onOpened={onOpened} initialCreating={createOnLaunch} />
         )}
       </div>
     </div>

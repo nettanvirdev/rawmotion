@@ -18,11 +18,14 @@ import { cn } from "@/lib/utils";
 
 export const Launcher: React.FC<{
   onOpened: (dirName: string, project: import("@shared/project.js").Project) => void;
-}> = ({ onOpened }) => {
+  /** Open straight onto the create form - set when the editor's app menu
+   *  chose "New project" so the user lands where they were heading. */
+  initialCreating?: boolean;
+}> = ({ onOpened, initialCreating = false }) => {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(initialCreating);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const refresh = () => {
