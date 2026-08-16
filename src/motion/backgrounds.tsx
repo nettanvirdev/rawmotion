@@ -453,6 +453,493 @@ export const GlassSurface: React.FC<GlassSurfaceProps> = ({
   </div>
 );
 
+
+
+/**
+ * Compensate for how much a hue brightens under `screen` blending.
+ *
+ * OKLCH makes two poles perceptually equal in lightness, but the poles are
+ * composited with `screen`, which operates per-channel in sRGB. Amber has
+ * high red *and* green, so four overlapping amber poles pile up far more
+ * luminance than four violet ones at the identical OKLCH lightness - which
+ * is why an amber theme came out as a milky wash while violet looked right.
+ *
+ * This scales alpha down for the hues that screen brightest. The curve peaks
+ * its reduction around OKLCH hue 95 (yellow-green, the brightest region) and
+ * leaves blue-violet near 275 untouched.
+ */
+function screenCompensation(hue: number): number {
+  const radians = ((hue - 95) * Math.PI) / 180;
+  // 0.55 at the yellow-green peak, 1.0 at blue-violet.
+  return 1 - 0.45 * ((1 + Math.cos(radians)) / 2);
+}
+
+/* ------------------------------------------------------------------ *
+ * MeshGradient
+ * ------------------------------------------------------------------ */
+
+export interface MeshGradientProps {
+  hue?: number;
+  /** Degrees of hue variation between the blobs. */
+  hueSpread?: number;
+  intensity?: number;
+  speed?: number;
+  /** Number of colour poles. Four reads as a mesh; more turns to mud. */
+  points?: number;
+  light?: boolean;
+}
+
+/**
+ * A mesh gradient - several soft colour poles bleeding into one another.
+ *
+ * This is the backdrop the current technical-SaaS look is built on. It
+ * replaces the particle field as the default because particles read as a
+ * screensaver, whereas a mesh reads as a lit surface: the eye interprets the
+ * soft falloff as light in a space rather than as objects in front of a
+ * camera.
+ *
+ * Rendered as large blurred radial gradients rather than an SVG mesh:
+ * `filter: blur()` on a handful of divs is one GPU pass, while an equivalent
+ * SVG displacement mesh is rasterised on the CPU per frame.
+ */
+export const MeshGradient: React.FC<MeshGradientProps> = ({
+  hue = 252,
+  hueSpread = 40,
+  intensity = 1,
+  speed = 1,
+  points = 4,
+  light = false,
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+
+  const poles = useMemo(
+    () =>
+      Array.from({ length: Math.min(6, Math.max(2, points)) }, (_, i) => ({
+        i,
+        hue: hue + mix(seededRandom(i * 7 + 1), -hueSpread / 2, hueSpread / 2),
+        x: mix(seededRandom(i * 11 + 3), 0.05, 0.95),
+        // Biased to the upper half. Light comes from above in every lit
+        // scene; poles scattered evenly across the frame read as a coloured
+        // wash rather than as a lit space, and wash is exactly the failure
+        // mode that makes a gradient background look cheap.
+        y: mix(seededRandom(i * 13 + 5), -0.15, 0.72),
+        size: mix(seededRandom(i * 17 + 7), 0.7, 1.25),
+        period: mix(seededRandom(i * 19 + 11), 520, 1000),
+        phase: seededRandom(i * 23 + 13),
+      })),
+    [hue, hueSpread, points],
+  );
+
+  const diagonal = Math.hypot(width, height);
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      {poles.map((pole) => {
+        // Poles drift slowly and independently. A mesh whose poles move in
+        // lockstep reads as one sliding image rather than as flowing light.
+        const dx = (oscillate(frame * speed, pole.period, pole.phase) - 0.5) * 0.16;
+        const dy = (oscillate(frame * speed, pole.period * 1.31, pole.phase) - 0.5) * 0.14;
+        const size = diagonal * pole.size;
+
+        // Deliberately low. An earlier pass used more than double this and
+        // the result was a saturated wash that fought the content and banded
+        // badly at video bitrates - flat saturated areas are exactly where
+        // h264 blocking shows. The reference look (Linear, Vercel, Stripe) is
+        // much darker than it appears: mostly near-black, colour implied.
+        //
+        // A light theme multiplies onto an already-light field, so the same
+        // alpha that reads as "a hint of colour" on black reads as a heavy
+        // wash on white, and needs roughly half the strength.
+        const alpha =
+          (light ? 0.1 : 0.17) * intensity * screenCompensation(pole.hue);
+        const lightness = light ? 0.72 : 0.56;
+        const chroma = light ? 0.07 : 0.13;
+
+        return (
+          <div
+            key={pole.i}
+            style={{
+              position: "absolute",
+              left: `${(pole.x + dx) * 100}%`,
+              top: `${(pole.y + dy) * 100}%`,
+              width: size,
+              height: size,
+              transform: "translate(-50%, -50%)",
+              borderRadius: "50%",
+              background: `radial-gradient(circle, oklch(${lightness} ${chroma} ${pole.hue} / ${alpha}) 0%, transparent 62%)`,
+              filter: `blur(${size * 0.1}px)`,
+              mixBlendMode: light ? "multiply" : "screen",
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * DotGrid
+ * ------------------------------------------------------------------ */
+
+export interface DotGridProps {
+  /** 0..1 overall strength. */
+  intensity?: number;
+  /** Pixel spacing between dots at 1080p. */
+  spacing?: number;
+  dotSize?: number;
+  color?: string;
+  /** Fade the grid out toward the edges so it does not tile visibly. */
+  mask?: boolean;
+}
+
+/**
+ * A dot matrix.
+ *
+ * The single most recognisable cue in modern developer-product design, and
+ * the cheapest way to make a frame read as "technical" rather than
+ * "decorative". Implemented as a repeating radial-gradient background, so it
+ * costs one paint regardless of how many dots are on screen - a DOM node per
+ * dot would be tens of thousands of elements at this spacing.
+ *
+ * The radial mask matters more than it looks: an unmasked grid running to
+ * the frame edge reads as a texture applied to the video, while one that
+ * fades out reads as a surface receding into the dark.
+ */
+export const DotGrid: React.FC<DotGridProps> = ({
+  intensity = 0.5,
+  spacing = 32,
+  dotSize = 1.6,
+  color = "255 255 255",
+  mask = true,
+}) => (
+  <AbsoluteFill
+    style={{
+      backgroundImage: `radial-gradient(circle at center, rgb(${color} / ${(0.5 * intensity).toFixed(3)}) ${dotSize}px, transparent ${dotSize}px)`,
+      backgroundSize: `${spacing}px ${spacing}px`,
+      maskImage: mask
+        ? "radial-gradient(ellipse 75% 65% at 50% 45%, black 0%, transparent 100%)"
+        : undefined,
+      WebkitMaskImage: mask
+        ? "radial-gradient(ellipse 75% 65% at 50% 45%, black 0%, transparent 100%)"
+        : undefined,
+    }}
+  />
+);
+
+/* ------------------------------------------------------------------ *
+ * GridLines
+ * ------------------------------------------------------------------ */
+
+export interface GridLinesProps {
+  intensity?: number;
+  spacing?: number;
+  color?: string;
+  mask?: boolean;
+}
+
+/** A ruled grid. Structural where `DotGrid` is textural. */
+export const GridLines: React.FC<GridLinesProps> = ({
+  intensity = 0.4,
+  spacing = 96,
+  color = "255 255 255",
+  mask = true,
+}) => {
+  const line = `rgb(${color} / ${(0.16 * intensity).toFixed(3)})`;
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundImage: `linear-gradient(to right, ${line} 1px, transparent 1px), linear-gradient(to bottom, ${line} 1px, transparent 1px)`,
+        backgroundSize: `${spacing}px ${spacing}px`,
+        maskImage: mask
+          ? "radial-gradient(ellipse 80% 70% at 50% 40%, black 0%, transparent 100%)"
+          : undefined,
+        WebkitMaskImage: mask
+          ? "radial-gradient(ellipse 80% 70% at 50% 40%, black 0%, transparent 100%)"
+          : undefined,
+      }}
+    />
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Spotlight
+ * ------------------------------------------------------------------ */
+
+export interface SpotlightProps {
+  hue?: number;
+  intensity?: number;
+  /** Horizontal position, 0..1. */
+  x?: number;
+  /** How far down the frame the light reaches, 0..1. */
+  reach?: number;
+  light?: boolean;
+}
+
+/**
+ * A wide light source above the frame.
+ *
+ * Gives the composition a direction for its light, which is what makes
+ * everything below it look lit rather than merely coloured. Anchored off the
+ * top edge so the source itself is never visible - a visible hotspot reads
+ * as a lens flare, which is a different and much cheaper effect.
+ */
+export const Spotlight: React.FC<SpotlightProps> = ({
+  hue = 252,
+  intensity = 1,
+  x = 0.5,
+  reach = 0.85,
+  light = false,
+}) => {
+  const frame = useCurrentFrame();
+  const breathe = mix(oscillate(frame, 420), 0.88, 1);
+
+  return (
+    <AbsoluteFill
+      style={{
+        background: `radial-gradient(ellipse ${reach * 90}% ${reach * 70}% at ${x * 100}% -10%, oklch(${light ? 0.78 : 0.64} ${light ? 0.06 : 0.11} ${hue} / ${(0.14 * intensity * breathe * screenCompensation(hue)).toFixed(3)}) 0%, transparent 70%)`,
+        mixBlendMode: light ? "multiply" : "screen",
+      }}
+    />
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * AuroraBands
+ * ------------------------------------------------------------------ */
+
+export interface AuroraBandsProps {
+  hue?: number;
+  hueSpread?: number;
+  intensity?: number;
+  speed?: number;
+  bands?: number;
+}
+
+/**
+ * Flowing ribbons of light.
+ *
+ * More movement than a mesh and less than a particle field. Each band is a
+ * wide blurred conic slice on its own slow period, and they are deliberately
+ * given prime-ish periods so the composite never visibly repeats within the
+ * length of a film.
+ */
+export const AuroraBands: React.FC<AuroraBandsProps> = ({
+  hue = 168,
+  hueSpread = 64,
+  intensity = 1,
+  speed = 1,
+  bands = 3,
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const diagonal = Math.hypot(width, height);
+
+  const ribbons = useMemo(
+    () =>
+      Array.from({ length: Math.min(5, Math.max(1, bands)) }, (_, i) => ({
+        i,
+        hue: hue + mix(seededRandom(i * 29 + 3), -hueSpread / 2, hueSpread / 2),
+        y: mix(seededRandom(i * 31 + 5), 0.2, 0.8),
+        thickness: mix(seededRandom(i * 37 + 7), 0.16, 0.34),
+        period: [530, 670, 790, 910, 1030][i],
+        phase: seededRandom(i * 41 + 11),
+        tilt: mix(seededRandom(i * 43 + 13), -22, 22),
+      })),
+    [hue, hueSpread, bands],
+  );
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      {ribbons.map((r) => {
+        const drift = (oscillate(frame * speed, r.period, r.phase) - 0.5) * 0.3;
+        const swell = mix(oscillate(frame * speed, r.period * 1.7, r.phase), 0.6, 1);
+
+        return (
+          <div
+            key={r.i}
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: `${(r.y + drift) * 100}%`,
+              width: diagonal * 1.5,
+              height: height * r.thickness,
+              transform: `translate(-50%, -50%) rotate(${r.tilt}deg)`,
+              background: `linear-gradient(to bottom, transparent 0%, oklch(0.66 0.14 ${r.hue} / ${(0.24 * intensity * swell * screenCompensation(r.hue)).toFixed(3)}) 50%, transparent 100%)`,
+              filter: `blur(${height * r.thickness * 0.42}px)`,
+              mixBlendMode: "screen",
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Beams
+ * ------------------------------------------------------------------ */
+
+export interface BeamsProps {
+  hue?: number;
+  intensity?: number;
+  count?: number;
+  angle?: number;
+}
+
+/** Hard-edged light shafts. Louder than `LightField`, for high-energy work. */
+export const Beams: React.FC<BeamsProps> = ({
+  hue = 288,
+  intensity = 1,
+  count = 4,
+  angle = -22,
+}) => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const diagonal = Math.hypot(width, height);
+
+  const shafts = useMemo(
+    () =>
+      Array.from({ length: Math.min(8, Math.max(1, count)) }, (_, i) => ({
+        i,
+        x: (i + 0.5) / Math.min(8, Math.max(1, count)),
+        width: mix(seededRandom(i * 53 + 3), 0.02, 0.07),
+        alpha: mix(seededRandom(i * 59 + 5), 0.12, 0.3),
+        period: mix(seededRandom(i * 61 + 7), 380, 820),
+        phase: seededRandom(i * 67 + 11),
+        hue: hue + mix(seededRandom(i * 71 + 13), -24, 24),
+      })),
+    [count, hue],
+  );
+
+  return (
+    <AbsoluteFill style={{ overflow: "hidden" }}>
+      {shafts.map((s) => {
+        const sweep = (oscillate(frame, s.period, s.phase) - 0.5) * 0.1;
+        const pulse = mix(oscillate(frame, s.period * 1.4, s.phase), 0.45, 1);
+
+        return (
+          <div
+            key={s.i}
+            style={{
+              position: "absolute",
+              left: `${(s.x + sweep) * 100}%`,
+              top: "50%",
+              width: s.width * width,
+              height: diagonal * 1.8,
+              transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+              background: `linear-gradient(to bottom, transparent 0%, oklch(0.72 0.16 ${s.hue} / ${(s.alpha * intensity * pulse * screenCompensation(s.hue)).toFixed(3)}) 50%, transparent 100%)`,
+              filter: `blur(${s.width * width * 0.5}px)`,
+              mixBlendMode: "screen",
+            }}
+          />
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+/* ------------------------------------------------------------------ *
+ * Studio
+ * ------------------------------------------------------------------ */
+
+export interface StudioProps {
+  hue?: number;
+  hueSpread?: number;
+  intensity?: number;
+  speed?: number;
+  /** 0 disables. Each of these is a layer in the stack. */
+  dots?: number;
+  grid?: number;
+  spotlight?: number;
+  aurora?: number;
+  beams?: number;
+  grain?: number;
+  vignette?: number;
+  light?: boolean;
+}
+
+/**
+ * The composed studio backdrop. This is the one to reach for.
+ *
+ * Stack order is the entire point, and is why this exists rather than
+ * leaving callers to layer the pieces themselves:
+ *
+ *   1. mesh gradient    the lit field
+ *   2. aurora / beams   optional movement
+ *   3. dot grid / grid  the technical surface, masked so it recedes
+ *   4. spotlight        direction for the light
+ *   5. vignette         pulls the eye to centre
+ *   6. grain            over everything
+ *
+ * Grain has to be last or it looks like texture *behind* glass. The vignette
+ * has to sit above the light and below the grain, or it darkens the noise
+ * instead of the image. Getting this order wrong is the difference between
+ * "lit space" and "gradient with stuff on it".
+ */
+export const Studio: React.FC<StudioProps> = ({
+  hue = 252,
+  hueSpread = 40,
+  intensity = 1,
+  speed = 1,
+  dots = 0.5,
+  grid = 0,
+  spotlight = 0.9,
+  aurora = 0,
+  beams = 0,
+  grain = 0.045,
+  vignette = 1,
+  light = false,
+}) => (
+  <AbsoluteFill>
+    {/* A dark base beneath the mesh. Without it the mesh IS the background
+        and its brightest pole sets the exposure of the whole frame; with it
+        the mesh reads as light falling on a dark surface. */}
+    {!light ? (
+      <AbsoluteFill
+        style={{
+          // OKLCH, not HSL. HSL "lightness" is not perceptual: hue 28 at
+          // L=7% reads far brighter than hue 252 at the same value, so an
+          // amber theme came out as a milky brown wash while the identical
+          // numbers in violet looked correct. In OKLCH, L is perceived
+          // lightness, so one set of values holds across every hue.
+          background: `linear-gradient(175deg, oklch(0.15 0.035 ${hue}) 0%, oklch(0.115 0.028 ${hue}) 55%, oklch(0.095 0.022 ${hue}) 100%)`,
+        }}
+      />
+    ) : null}
+
+    <MeshGradient
+      hue={hue}
+      hueSpread={hueSpread}
+      intensity={intensity}
+      speed={speed}
+      light={light}
+    />
+
+    {aurora > 0 ? (
+      <AuroraBands hue={hue} hueSpread={hueSpread} intensity={aurora * intensity} speed={speed} />
+    ) : null}
+    {beams > 0 ? <Beams hue={hue} intensity={beams * intensity} /> : null}
+
+    {grid > 0 ? (
+      <GridLines intensity={grid} color={light ? "0 0 0" : "255 255 255"} />
+    ) : null}
+    {dots > 0 ? (
+      <DotGrid intensity={dots} color={light ? "0 0 0" : "255 255 255"} />
+    ) : null}
+
+    {spotlight > 0 ? (
+      <Spotlight hue={hue} intensity={spotlight} light={light} />
+    ) : null}
+
+    {/* The vignette does real work here: it re-darkens the lower corners the
+        mesh lifts, which is what keeps the frame reading as lit rather than
+        as tinted. */}
+    {vignette > 0 && !light ? <Vignette intensity={vignette * 1.15} /> : null}
+    {grain > 0 ? <NoiseOverlay opacity={grain} /> : null}
+  </AbsoluteFill>
+);
+
 /* ------------------------------------------------------------------ *
  * DepthBackground
  * ------------------------------------------------------------------ */
@@ -502,6 +989,13 @@ export const DepthBackground: React.FC<DepthBackgroundProps> = ({
  * enumerate the options.
  */
 export const BACKGROUND_REGISTRY = {
+  studio: { label: "Studio (composed: mesh, dots, spotlight, vignette, grain)", component: Studio },
+  mesh: { label: "Mesh gradient", component: MeshGradient },
+  dotGrid: { label: "Dot grid", component: DotGrid },
+  gridLines: { label: "Ruled grid", component: GridLines },
+  spotlight: { label: "Spotlight", component: Spotlight },
+  auroraBands: { label: "Aurora bands", component: AuroraBands },
+  beams: { label: "Light beams", component: Beams },
   cinematicGradient: { label: "Cinematic gradient", component: CinematicGradient },
   atmosphere: { label: "Atmosphere", component: Atmosphere },
   particleField: { label: "Particle field", component: ParticleField },

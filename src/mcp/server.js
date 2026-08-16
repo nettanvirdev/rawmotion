@@ -49,6 +49,8 @@ import { resolveInProject, resolveWorkspaceRoot } from "../shared/paths.js";
 import * as store from "../shared/project-fs.js";
 import { TEMPLATES } from "../shared/templates.js";
 import { BACKGROUND_REGISTRY } from "./registry-data.js";
+import { THEME_NAMES, themeCatalogue } from "../motion/themes.js";
+import { LAYOUT_PRESET_NAMES } from "./layout-data.js";
 import {
   getRenderJob,
   listRenderJobs,
@@ -159,6 +161,8 @@ server.tool(
     const { COMPONENT_SPECS, PRESET_NAMES } = await import("./registry-data.js");
     return text({
       layerTypes: LAYER_TYPES,
+      themes: themeCatalogue(),
+      layoutPresets: LAYOUT_PRESET_NAMES,
       components: COMPONENT_SPECS,
       backgroundKinds: Object.keys(BACKGROUND_REGISTRY),
       animationPresets: PRESET_NAMES,
@@ -172,6 +176,8 @@ server.tool(
         "A scene's transition overlaps it with the NEXT scene, so adding one shortens the project.",
         "Layer start/duration are relative to the layer's own scene, not the project.",
         "Layer transform x/y are pixel offsets from the centre of frame.",
+        "ALIGNMENT: use layer.layout (a 12-column x 8-row grid) rather than transform x/y. Two layers in the same column get identical left edges regardless of their content width; transform x/y cannot do that, because each layer is centred on its own box.",
+        "Set the project theme rather than colouring components individually - components inherit accent, text and panel colours, so one set_theme call restyles everything.",
       ],
     });
   }),
@@ -189,13 +195,17 @@ server.tool(
     width: z.number().int().optional().describe("Default 1920."),
     height: z.number().int().optional().describe("Default 1080."),
     fps: z.number().int().optional().describe("Default 30."),
-    background: z.string().optional().describe("CSS colour behind every scene."),
+    background: z.string().optional().describe("CSS colour behind every scene. Omit to use the theme's."),
+    theme: z
+      .enum(THEME_NAMES)
+      .optional()
+      .describe("Visual theme. Sets the backdrop, accent and type colours for the whole film."),
     template: z
       .enum(["blank", "aurora", "empty"])
       .optional()
       .describe("'empty' creates a project with one bare scene. Default 'empty'."),
   },
-  tool(async ({ name, width, height, fps, background, template = "empty" }) => {
+  tool(async ({ name, width, height, fps, background, theme, template = "empty" }) => {
     const composition = {
       ...(width ? { width } : {}),
       ...(height ? { height } : {}),
@@ -210,6 +220,13 @@ server.tool(
     }
 
     const created = await store.createProjectOnDisk(ROOT, { name, composition, scenes });
+    if (theme) {
+      await store.saveProject(ROOT, created.dirName, {
+        ...created.project,
+        theme: { preset: theme },
+      });
+      created.project.theme = { preset: theme };
+    }
     return text({
       dirName: created.dirName,
       path: created.dir,
@@ -286,6 +303,42 @@ server.tool(
       composition: { ...project.composition, ...clean },
     };
     return text(await commit(dirName, next, { composition: next.composition }));
+  }),
+);
+
+server.tool(
+  "set_theme",
+  "Change the whole film's look in one call: backdrop, accent and type colours. Every component inherits it unless a layer sets a colour explicitly. This is the right way to answer 'make it warmer' or 'try a different background'.",
+  {
+    dirName: z.string(),
+    theme: z.enum(THEME_NAMES).describe("Theme id. Call describe_capabilities for descriptions."),
+    accent: z.string().optional().describe("Override just the accent, keeping the theme otherwise."),
+    background: z.string().optional().describe("Override just the backdrop colour."),
+    backdrop: z
+      .record(z.any())
+      .optional()
+      .describe(
+        "Fine-tune the backdrop: hue, hueSpread, intensity, speed, dots, grid, spotlight, aurora, beams, grain, vignette.",
+      ),
+  },
+  tool(async ({ dirName, theme, accent, background, backdrop }) => {
+    const { project } = await load(dirName);
+
+    const overrides = {
+      ...(accent ? { accent } : {}),
+      ...(background ? { background } : {}),
+      ...(backdrop ? { backdrop } : {}),
+    };
+
+    const next = {
+      ...project,
+      theme: {
+        preset: theme,
+        ...(Object.keys(overrides).length ? { overrides } : {}),
+      },
+    };
+
+    return text(await commit(dirName, next, { theme: next.theme }));
   }),
 );
 
@@ -414,6 +467,36 @@ const transformSchema = z
   })
   .optional();
 
+/**
+ * Grid placement.
+ *
+ * This is how alignment is achieved. Without it a layer is centred on its
+ * own content and nudged by transform.x, so two layers given the same x have
+ * *different* left edges - offset by half the difference in their widths.
+ * With a layout, an element's edge comes from the grid rather than from its
+ * content, so two layers in column 1 line up exactly whatever is inside them.
+ *
+ * Prefer a preset. Reach for explicit col/row only when no preset fits.
+ */
+const layoutSchema = z
+  .object({
+    preset: z
+      .string()
+      .optional()
+      .describe(
+        `Named region. One of: ${LAYOUT_PRESET_NAMES.join(", ")}. Explicit fields below override it.`,
+      ),
+    col: z.number().int().optional().describe("1-based start column on the 12-column grid."),
+    span: z.number().int().optional().describe("Columns spanned."),
+    row: z.number().int().optional().describe("1-based start row on the 8-row grid."),
+    rowSpan: z.number().int().optional().describe("Rows spanned."),
+    align: z.enum(["left", "center", "right"]).optional(),
+    valign: z.enum(["top", "middle", "bottom"]).optional(),
+    offsetX: z.number().optional().describe("Pixel nudge after the cell is computed. Use sparingly."),
+    offsetY: z.number().optional(),
+  })
+  .optional();
+
 const animationSchema = z
   .object({
     preset: z.string(),
@@ -434,12 +517,13 @@ server.tool(
     name: z.string().optional(),
     start: z.number().int().optional().describe("Frames from the scene's start. Default 0."),
     duration: z.number().int().optional().describe("Default: to the end of the scene."),
+    layout: layoutSchema,
     transform: transformSchema,
     props: z.record(z.any()).optional().describe("Type-specific properties."),
     enter: animationSchema,
     exit: animationSchema,
   },
-  tool(async ({ dirName, sceneId, type, name, start, duration, transform, props, enter, exit }) => {
+  tool(async ({ dirName, sceneId, type, name, start, duration, layout, transform, props, enter, exit }) => {
     const { project } = await load(dirName);
     const index = resolveSceneIndex(project, sceneId);
     const scene = project.scenes[index];
@@ -450,6 +534,7 @@ server.tool(
       name: name ?? undefined,
       start: start ?? 0,
       duration: duration ?? scene.durationInFrames - (start ?? 0),
+      layout,
       transform,
       props,
       animation: {
@@ -486,12 +571,13 @@ server.tool(
     duration: z.number().int().optional(),
     hidden: z.boolean().optional(),
     locked: z.boolean().optional(),
+    layout: layoutSchema,
     transform: transformSchema,
     props: z.record(z.any()).optional(),
     enter: animationSchema,
     exit: animationSchema,
   },
-  tool(async ({ dirName, layerId, transform, props, enter, exit, ...rest }) => {
+  tool(async ({ dirName, layerId, layout, transform, props, enter, exit, ...rest }) => {
     const { project } = await load(dirName);
     const found = findLayer(project, layerId);
     if (!found) throw new Error(`No layer with id ${layerId}. Use inspect_project to list them.`);
@@ -501,6 +587,7 @@ server.tool(
     const updated = {
       ...found.layer,
       ...clean,
+      ...(layout ? { layout: { ...(found.layer.layout ?? {}), ...layout } } : {}),
       transform: { ...found.layer.transform, ...(transform ?? {}) },
       props: { ...found.layer.props, ...(props ?? {}) },
       animation: {
@@ -561,6 +648,7 @@ server.tool(
               name: z.string().optional(),
               start: z.number().int().optional(),
               duration: z.number().int().optional(),
+              layout: layoutSchema,
               transform: transformSchema,
               props: z.record(z.any()).optional(),
               enter: animationSchema,
@@ -587,6 +675,7 @@ server.tool(
             name: l.name,
             start: l.start ?? 0,
             duration: l.duration ?? spec.durationInFrames - (l.start ?? 0),
+            layout: l.layout,
             transform: l.transform,
             props: l.props,
             animation: {

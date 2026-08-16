@@ -1,6 +1,12 @@
 /**
  * Component specifications - plain data, no React.
  *
+ * An accent default of `""` means "inherit the project theme". That is the
+ * important case: an agent that copies defaults into `project.json` would
+ * otherwise bake one theme's accent into every layer, and changing the theme
+ * afterwards would restyle the backdrop while leaving forty components in
+ * the old colour.
+ *
  * Split out of `registry.ts` so three consumers can share one description:
  *
  *   - `registry.ts` pairs each spec with its React component;
@@ -30,7 +36,7 @@ export const COMPONENT_SPECS = {
       eyebrow: { kind: "text", label: "Eyebrow", default: "" },
       text: { kind: "text", label: "Title", default: "Introducing Raw Motion" },
       caption: { kind: "text", label: "Caption", default: "", multiline: true },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       size: { kind: "number", label: "Size", default: 112, min: 24, max: 400, step: 2 },
       align: {
         kind: "select",
@@ -51,7 +57,7 @@ export const COMPONENT_SPECS = {
       title: { kind: "text", label: "Title", default: "Raw Motion" },
       caption: { kind: "text", label: "Caption", default: "AI-native motion design" },
       badge: { kind: "text", label: "Badge", default: "v1.0" },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       width: { kind: "number", label: "Width", default: 720, min: 120, max: 3840, step: 10 },
       height: { kind: "number", label: "Height", default: 440, min: 120, max: 2160, step: 10 },
       sway: { kind: "number", label: "Sway", default: 2.5, min: 0, max: 12, step: 0.5 },
@@ -68,7 +74,7 @@ export const COMPONENT_SPECS = {
         default: "Code-first compositions\nLive preview\nFrame-accurate export",
         multiline: true,
       },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       fontSize: { kind: "number", label: "Size", default: 34, min: 12, max: 160, step: 1 },
     },
   },
@@ -78,7 +84,7 @@ export const COMPONENT_SPECS = {
     description: "Drawn mark beside a wordmark. Built for outros.",
     props: {
       wordmark: { kind: "text", label: "Wordmark", default: "Raw Motion" },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       size: { kind: "number", label: "Size", default: 96, min: 24, max: 400, step: 4 },
     },
   },
@@ -92,7 +98,7 @@ export const COMPONENT_SPECS = {
       number: { kind: "text", label: "Number", default: "01" },
       title: { kind: "text", label: "Title", default: "Architecture" },
       subtitle: { kind: "text", label: "Subtitle", default: "", multiline: true },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       size: { kind: "number", label: "Size", default: 96, min: 24, max: 320, step: 4 },
     },
   },
@@ -155,7 +161,7 @@ export const COMPONENT_SPECS = {
         default: "src/\n  motion/\n    timing.ts *\n  shared/\n    project.js",
         multiline: true,
       },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       fontSize: { kind: "number", label: "Font size", default: 24, min: 8, max: 80, step: 1 },
       stagger: { kind: "number", label: "Stagger", default: 2.5, min: 0, max: 20, step: 0.5 },
       delay: { kind: "number", label: "Delay", default: 0, min: 0, max: 3000, step: 1 },
@@ -182,7 +188,7 @@ export const COMPONENT_SPECS = {
           { value: "horizontal", label: "Horizontal" },
         ],
       },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       fontSize: { kind: "number", label: "Font size", default: 26, min: 8, max: 90, step: 1 },
       nodeWidth: { kind: "number", label: "Node width", default: 340, min: 80, max: 1600, step: 10 },
       gap: { kind: "number", label: "Gap", default: 40, min: 4, max: 300, step: 2 },
@@ -196,7 +202,7 @@ export const COMPONENT_SPECS = {
     props: {
       label: { kind: "text", label: "Label", default: "NOTE" },
       text: { kind: "text", label: "Text", default: "", multiline: true },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       fontSize: { kind: "number", label: "Font size", default: 26, min: 8, max: 90, step: 1 },
       width: { kind: "number", label: "Width", default: 720, min: 160, max: 2400, step: 10 },
     },
@@ -224,7 +230,7 @@ export const COMPONENT_SPECS = {
         default: "161 | tests passing\n644 | frames rendered\n0 | duration limits",
         multiline: true,
       },
-      accent: { kind: "color", label: "Accent", default: "#8b9bff" },
+      accent: { kind: "color", label: "Accent", default: "" },
       size: { kind: "number", label: "Size", default: 72, min: 16, max: 260, step: 2 },
       columns: { kind: "number", label: "Columns", default: 3, min: 1, max: 6, step: 1 },
     },
@@ -246,7 +252,14 @@ export const COMPONENT_SPECS = {
  * Mirrors BACKGROUND_REGISTRY in backgrounds.tsx; guarded by a test.
  */
 export const BACKGROUND_KINDS = [
-  { value: "depth", label: "Depth (composed: gradient, atmosphere, light, particles, vignette, grain)" },
+  { value: "studio", label: "Studio - mesh gradient, dot grid, spotlight, vignette, grain. The default; inherits the project theme." },
+  { value: "mesh", label: "Mesh gradient - soft colour poles bleeding into one another" },
+  { value: "dotGrid", label: "Dot grid - the technical-product surface cue" },
+  { value: "gridLines", label: "Ruled grid - structural where dotGrid is textural" },
+  { value: "spotlight", label: "Spotlight - a wide light source above frame" },
+  { value: "auroraBands", label: "Aurora bands - flowing ribbons of light" },
+  { value: "beams", label: "Light beams - hard-edged shafts, high energy" },
+  { value: "depth", label: "Depth - the older particle-based composite" },
   { value: "cinematicGradient", label: "Cinematic gradient" },
   { value: "atmosphere", label: "Atmosphere - drifting pools of light" },
   { value: "particleField", label: "Particle field" },

@@ -55,14 +55,19 @@ A structure that works, 5-9 scenes:
 Chapter cards carry the structure. The standard technical scene is:
 
 ```
-Chapter card, left   ← number, title, one-line subtitle
-CodeBlock, right     ← real source, 8-16 lines, focusLines on the point
-Callout, lower-left  ← delayed, the sentence that lands the idea
+Chapter card    layout: splitLeft    ← number, title, one-line subtitle
+CodeBlock       layout: splitRight   ← real source, 8-16 lines, focusLines
+Callout         layout: bottomLeft   ← delayed, the sentence that lands it
 ```
 
-At 1920x1080 that means the chapter at roughly `x: -560, y: -190`, the code
-at `x: 400, y: 10` with `width: 820`, and the callout at `x: -540, y: 300`
-appearing 100+ frames in — after the viewer has had time to read the code.
+Use exactly those layout presets. `splitLeft` and `bottomLeft` both start at
+column 1, so the chapter title and the callout share a left edge precisely -
+which is what makes the frame read as designed rather than assembled. Never
+position these with `transform.x/y`; see the alignment section of the
+`raw-motion` skill for why.
+
+Time the callout 100+ frames in, after the viewer has had a chance to read
+the code.
 
 ## Code on screen
 

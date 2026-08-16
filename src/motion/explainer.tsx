@@ -24,7 +24,14 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 import { CODE_COLORS, type Language, languageForFile, tokenizeBlock } from "./highlight";
 import { DISPLAY_FONT, MONO_FONT, MaskedLines, TypeOn } from "./text";
 import { EASINGS, mix, oscillate, progress, springProgress, staggerDelay } from "./timing";
+import { themed, useTheme } from "./theme";
 
+/**
+ * Fallbacks only. Every component below reads these from the theme instead,
+ * so a theme change restyles the whole film. They exist for the case where a
+ * component is mounted outside a ThemeProvider - a unit test, or a
+ * Storybook-style preview.
+ */
 const PANEL_BG = "#0d0f16";
 const PANEL_EDGE = "rgb(255 255 255 / 0.07)";
 const TEXT = "#eef0f6";
@@ -49,13 +56,16 @@ function splitLines(value: string): string[] {
 }
 
 /** The panel treatment shared by CodeBlock, Terminal and FileTree. */
-function panelStyle(radius = 14): React.CSSProperties {
+function panelStyle(
+  radius = 14,
+  theme?: { panel: string; panelEdge: string },
+): React.CSSProperties {
   return {
-    background: PANEL_BG,
+    background: theme?.panel ?? PANEL_BG,
     borderRadius: radius,
     boxShadow: [
       `inset 0 1px 0 0 rgb(255 255 255 / 0.08)`,
-      `inset 0 0 0 1px ${PANEL_EDGE}`,
+      `inset 0 0 0 1px ${theme?.panelEdge ?? PANEL_EDGE}`,
       "0 40px 90px -24px rgb(0 0 0 / 0.75)",
     ].join(", "),
     overflow: "hidden",
@@ -120,6 +130,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   maxLines = 0,
 }) => {
   const frame = useCurrentFrame();
+  const theme = useTheme();
 
   const resolved: Language =
     language === "auto" ? (filename ? languageForFile(filename) : "ts") : language;
@@ -136,7 +147,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   const gutter = showLineNumbers ? fontSize * 2.4 : 0;
 
   return (
-    <div style={{ ...panelStyle(), width, fontFamily: MONO_FONT }}>
+    <div style={{ ...panelStyle(14, theme), width, fontFamily: MONO_FONT }}>
       {filename ? (
         <div
           style={{
@@ -144,12 +155,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
             alignItems: "center",
             gap: 14,
             padding: `${fontSize * 0.62}px ${fontSize * 0.8}px`,
-            background: "rgb(255 255 255 / 0.025)",
-            boxShadow: `inset 0 -1px 0 0 ${PANEL_EDGE}`,
+            background: theme.surface,
+            boxShadow: `inset 0 -1px 0 0 ${theme.panelEdge}`,
           }}
         >
           <WindowDots />
-          <span style={{ fontSize: fontSize * 0.74, color: TEXT_DIM, letterSpacing: "0.01em" }}>
+          <span style={{ fontSize: fontSize * 0.74, color: theme.textDim, letterSpacing: "0.01em" }}>
             {filename}
           </span>
         </div>
@@ -276,31 +287,32 @@ export const Terminal: React.FC<TerminalProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const theme = useTheme();
 
   const typingFrames = (command.length / typeSpeed) * fps;
   const outputStart = delay + typingFrames + fps * 0.35;
   const outputLines = output ? String(output).replace(/\\n/g, "\n").split("\n") : [];
 
   return (
-    <div style={{ ...panelStyle(), width, fontFamily: MONO_FONT }}>
+    <div style={{ ...panelStyle(14, theme), width, fontFamily: MONO_FONT }}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 14,
           padding: `${fontSize * 0.62}px ${fontSize * 0.8}px`,
-          background: "rgb(255 255 255 / 0.025)",
-          boxShadow: `inset 0 -1px 0 0 ${PANEL_EDGE}`,
+          background: theme.surface,
+          boxShadow: `inset 0 -1px 0 0 ${theme.panelEdge}`,
         }}
       >
         <WindowDots />
-        <span style={{ fontSize: fontSize * 0.74, color: TEXT_DIM }}>{title}</span>
+        <span style={{ fontSize: fontSize * 0.74, color: theme.textDim }}>{title}</span>
       </div>
 
       <div style={{ padding: fontSize, fontSize, lineHeight: 1.65 }}>
-        <div style={{ display: "flex", gap: "0.6em", color: TEXT }}>
-          <span style={{ color: "#7fd6d0" }}>{prompt}</span>
-          <TypeOn text={command} delay={delay} speed={typeSpeed} style={{ color: TEXT }} />
+        <div style={{ display: "flex", gap: "0.6em", color: theme.text }}>
+          <span style={{ color: theme.accent }}>{prompt}</span>
+          <TypeOn text={command} delay={delay} speed={typeSpeed} style={{ color: theme.text }} />
         </div>
 
         {outputLines.map((line, i) => {
@@ -310,7 +322,7 @@ export const Terminal: React.FC<TerminalProps> = ({
             <div
               key={i}
               style={{
-                color: TEXT_DIM,
+                color: theme.textDim,
                 opacity: t,
                 transform: `translateY(${mix(t, 4, 0)}px)`,
                 whiteSpace: "pre-wrap",
@@ -360,11 +372,13 @@ export const FileTree: React.FC<FileTreeProps> = ({
   fontSize = 24,
   delay = 0,
   stagger = 2.5,
-  accent = "#8b9bff",
+  accent,
   width = 520,
   title = "",
 }) => {
   const frame = useCurrentFrame();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
 
   const rows = useMemo(
     () =>
@@ -380,12 +394,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
   );
 
   return (
-    <div style={{ ...panelStyle(), width, fontFamily: MONO_FONT, padding: fontSize * 0.9 }}>
+    <div style={{ ...panelStyle(14, theme), width, fontFamily: MONO_FONT, padding: fontSize * 0.9 }}>
       {title ? (
         <div
           style={{
             fontSize: fontSize * 0.68,
-            color: TEXT_DIM,
+            color: theme.textDim,
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             marginBottom: fontSize * 0.7,
@@ -417,15 +431,15 @@ export const FileTree: React.FC<FileTreeProps> = ({
                 width: fontSize * 0.42,
                 height: fontSize * 0.42,
                 borderRadius: row.isDir ? 3 : "50%",
-                background: row.highlighted ? accent : "rgb(255 255 255 / 0.18)",
-                boxShadow: row.highlighted ? `0 0 ${fontSize * 0.7}px ${accent}` : undefined,
+                background: row.highlighted ? tint : theme.textFaint,
+                boxShadow: row.highlighted ? `0 0 ${fontSize * 0.7}px ${tint}` : undefined,
                 flexShrink: 0,
               }}
             />
             <span
               style={{
                 fontSize,
-                color: row.highlighted ? TEXT : row.isDir ? "#aab1c4" : TEXT_DIM,
+                color: row.highlighted ? theme.text : row.isDir ? theme.text : theme.textDim,
               }}
             >
               {row.name}
@@ -463,7 +477,7 @@ export interface DiagramFlowProps {
 export const DiagramFlow: React.FC<DiagramFlowProps> = ({
   nodes = "Prompt\nProject model\nComposition\nMP4",
   direction = "vertical",
-  accent = "#8b9bff",
+  accent,
   fontSize = 26,
   delay = 0,
   nodeWidth = 340,
@@ -471,6 +485,8 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
 
   const items = useMemo(
     () =>
@@ -516,13 +532,13 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
                 textAlign: "center",
                 fontSize,
                 letterSpacing: "-0.01em",
-                color: item.emphasised ? "#ffffff" : "#c2c7d6",
+                color: item.emphasised ? theme.text : theme.textDim,
                 background: item.emphasised
-                  ? `linear-gradient(160deg, ${accent}38, ${accent}14)`
-                  : "rgb(255 255 255 / 0.035)",
+                  ? `linear-gradient(160deg, ${tint}38, ${tint}14)`
+                  : theme.surface,
                 boxShadow: item.emphasised
-                  ? `inset 0 0 0 1px ${accent}66, 0 18px 40px -14px ${accent}55`
-                  : `inset 0 0 0 1px ${PANEL_EDGE}`,
+                  ? `inset 0 0 0 1px ${tint}66, 0 18px 40px -14px ${tint}55`
+                  : `inset 0 0 0 1px ${theme.panelEdge}`,
                 opacity: t,
                 transform: `translateY(${mix(s, 14, 0)}px) scale(${mix(s, 0.96, 1)})`,
               }}
@@ -536,7 +552,7 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
                   width: vertical ? 2 : gap,
                   height: vertical ? gap : 2,
                   flexShrink: 0,
-                  background: `linear-gradient(${vertical ? "to bottom" : "to right"}, ${accent}88, ${accent}33)`,
+                  background: `linear-gradient(${vertical ? "to bottom" : "to right"}, ${tint}88, ${tint}33)`,
                   transform: vertical ? `scaleY(${connectorT})` : `scaleX(${connectorT})`,
                   transformOrigin: vertical ? "top center" : "left center",
                 }}
@@ -572,10 +588,12 @@ export const Chapter: React.FC<ChapterProps> = ({
   number = "01",
   title = "Architecture",
   subtitle = "",
-  accent = "#8b9bff",
+  accent,
   size = 96,
 }) => {
   const frame = useCurrentFrame();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
   const rule = progress(frame, 6, 34, EASINGS.outExpo);
 
   return (
@@ -586,7 +604,7 @@ export const Chapter: React.FC<ChapterProps> = ({
             fontSize: size * 0.3,
             fontWeight: 500,
             letterSpacing: "0.2em",
-            color: accent,
+            color: tint,
             fontVariantNumeric: "tabular-nums",
             opacity: progress(frame, 0, 20, EASINGS.outExpo),
           }}
@@ -597,7 +615,7 @@ export const Chapter: React.FC<ChapterProps> = ({
           style={{
             height: 1,
             width: size * 1.6,
-            background: `linear-gradient(to right, ${accent}, transparent)`,
+            background: `linear-gradient(to right, ${tint}, transparent)`,
             transform: `scaleX(${rule})`,
             transformOrigin: "left center",
           }}
@@ -613,7 +631,7 @@ export const Chapter: React.FC<ChapterProps> = ({
           fontWeight: 600,
           letterSpacing: "-0.035em",
           lineHeight: 1.04,
-          color: TEXT,
+          color: theme.text,
         }}
       />
 
@@ -626,7 +644,7 @@ export const Chapter: React.FC<ChapterProps> = ({
             fontSize: size * 0.24,
             fontWeight: 400,
             lineHeight: 1.45,
-            color: TEXT_DIM,
+            color: theme.textDim,
           }}
         />
       ) : null}
@@ -650,11 +668,13 @@ export interface CalloutProps {
 export const Callout: React.FC<CalloutProps> = ({
   label = "NOTE",
   text = "",
-  accent = "#8b9bff",
+  accent,
   fontSize = 26,
   width = 720,
 }) => {
   const frame = useCurrentFrame();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
   const t = progress(frame, 0, 24, EASINGS.outExpo);
 
   return (
@@ -665,8 +685,8 @@ export const Callout: React.FC<CalloutProps> = ({
         gap: fontSize * 0.8,
         padding: `${fontSize * 0.85}px ${fontSize}px`,
         borderRadius: 12,
-        background: `linear-gradient(150deg, ${accent}1f, ${accent}0a)`,
-        boxShadow: `inset 0 0 0 1px ${accent}3d`,
+        background: `linear-gradient(150deg, ${tint}1f, ${tint}0a)`,
+        boxShadow: `inset 0 0 0 1px ${tint}3d`,
         fontFamily: DISPLAY_FONT,
         opacity: t,
         transform: `translateY(${mix(t, 12, 0)}px)`,
@@ -676,7 +696,7 @@ export const Callout: React.FC<CalloutProps> = ({
         style={{
           width: 3,
           borderRadius: 2,
-          background: accent,
+          background: tint,
           transform: `scaleY(${progress(frame, 4, 26, EASINGS.outExpo)})`,
           transformOrigin: "top center",
           flexShrink: 0,
@@ -688,14 +708,14 @@ export const Callout: React.FC<CalloutProps> = ({
             style={{
               fontSize: fontSize * 0.58,
               letterSpacing: "0.18em",
-              color: accent,
+              color: tint,
               marginBottom: fontSize * 0.3,
             }}
           >
             {label}
           </div>
         ) : null}
-        <div style={{ fontSize, lineHeight: 1.45, color: TEXT, letterSpacing: "-0.01em" }}>
+        <div style={{ fontSize, lineHeight: 1.45, color: theme.text, letterSpacing: "-0.01em" }}>
           {text}
         </div>
       </div>
@@ -734,6 +754,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const theme = useTheme();
 
   const enter = springProgress(frame, fps, 0, "cinematic");
   const rotY = (oscillate(frame, 240) - 0.5) * 2 * sway;
@@ -744,7 +765,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
     <div style={{ perspective: 2200 }}>
       <div
         style={{
-          ...panelStyle(16),
+          ...panelStyle(16, theme),
           width,
           height,
           transform: `translateY(${mix(enter, 50, 0) + float}px) rotateY(${rotY}deg) scale(${mix(enter, 0.95, 1)})`,
@@ -759,7 +780,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
             gap: 18,
             padding: "0 18px",
             background: "rgb(255 255 255 / 0.03)",
-            boxShadow: `inset 0 -1px 0 0 ${PANEL_EDGE}`,
+            boxShadow: `inset 0 -1px 0 0 ${theme.panelEdge}`,
           }}
         >
           <WindowDots />
@@ -774,7 +795,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
               padding: "0 14px",
               fontFamily: MONO_FONT,
               fontSize: 14,
-              color: TEXT_DIM,
+              color: theme.textDim,
             }}
           >
             {url}
@@ -827,6 +848,7 @@ export const Caption: React.FC<CaptionProps> = ({
   maxWidth = 1200,
 }) => {
   const frame = useCurrentFrame();
+  const theme = useTheme();
   const t = progress(frame, 0, 14, EASINGS.outExpo);
 
   if (!text) return null;
@@ -837,14 +859,14 @@ export const Caption: React.FC<CaptionProps> = ({
         maxWidth,
         padding: `${fontSize * 0.45}px ${fontSize * 0.8}px`,
         borderRadius: 10,
-        background: "rgb(6 6 10 / 0.62)",
-        boxShadow: `inset 0 0 0 1px ${PANEL_EDGE}`,
+        background: theme.isLight ? "rgb(255 255 255 / 0.82)" : "rgb(6 6 10 / 0.62)",
+        boxShadow: `inset 0 0 0 1px ${theme.panelEdge}`,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         fontFamily: DISPLAY_FONT,
         fontSize,
         lineHeight: 1.35,
-        color: TEXT,
+        color: theme.text,
         textAlign: "center",
         letterSpacing: "-0.01em",
         opacity: t,
@@ -871,12 +893,14 @@ export interface StatGridProps {
 /** A row of headline figures. */
 export const StatGrid: React.FC<StatGridProps> = ({
   stats = "161 | tests passing\n644 | frames rendered\n0 | duration limits",
-  accent = "#8b9bff",
+  accent,
   size = 72,
   columns = 3,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
 
   const items = useMemo(
     () =>
@@ -916,7 +940,7 @@ export const StatGrid: React.FC<StatGridProps> = ({
                 fontSize: size,
                 fontWeight: 600,
                 letterSpacing: "-0.04em",
-                color: accent,
+                color: tint,
                 fontVariantNumeric: "tabular-nums",
                 lineHeight: 1,
               }}
@@ -927,7 +951,7 @@ export const StatGrid: React.FC<StatGridProps> = ({
               style={{
                 marginTop: size * 0.16,
                 fontSize: size * 0.22,
-                color: TEXT_DIM,
+                color: theme.textDim,
                 letterSpacing: "0.02em",
               }}
             >

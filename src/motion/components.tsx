@@ -18,6 +18,7 @@ import { useCurrentFrame, useVideoConfig } from "remotion";
 import { GlassSurface } from "./backgrounds";
 import { MaskedLines, WordReveal } from "./text";
 import { mix, oscillate, progress, springProgress, staggerDelay } from "./timing";
+import { themed, useTheme } from "./theme";
 
 const SANS =
   '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif';
@@ -48,11 +49,13 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
   text = "Introducing Raw Motion",
   eyebrow = "",
   caption = "",
-  accent = "#8b9bff",
+  accent,
   size = 112,
   align = "center",
 }) => {
   const frame = useCurrentFrame();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
 
   // The eyebrow leads, the title follows closely, the caption trails
   // further behind. Even spacing between three elements reads as a list;
@@ -79,7 +82,7 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
             fontWeight: 500,
             letterSpacing: "0.22em",
             textTransform: "uppercase",
-            color: accent,
+            color: tint,
           }}
         >
           {eyebrow}
@@ -101,12 +104,12 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
           fontWeight: 600,
           letterSpacing: "-0.035em",
           lineHeight: 1.04,
-          color: "#ffffff",
+          color: theme.text,
         }}
         lineStyle={{
           // A faint gradient down the type gives display text the same
           // top-lit falloff as the rest of the frame. Flat white reads as UI.
-          background: "linear-gradient(180deg, #ffffff 0%, #c4c8d6 100%)",
+          background: `linear-gradient(180deg, ${theme.text} 0%, ${theme.textDim} 130%)`,
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           backgroundClip: "text",
@@ -126,7 +129,7 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
             fontWeight: 400,
             lineHeight: 1.45,
             letterSpacing: "-0.01em",
-            color: "rgb(255 255 255 / 0.55)",
+            color: theme.textDim,
           }}
         />
       ) : null}
@@ -161,13 +164,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   title = "Raw Motion",
   caption = "AI-native motion design",
   badge = "v1.0",
-  accent = "#8b9bff",
+  accent,
   width = 720,
   height = 440,
   sway = 2.5,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
 
   const enter = springProgress(frame, fps, 0, "cinematic");
   const rotY = (oscillate(frame, 210) - 0.5) * 2 * sway;
@@ -215,8 +220,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               width: 44,
               height: 44,
               borderRadius: 13,
-              background: `linear-gradient(145deg, ${accent}, ${accent}44)`,
-              boxShadow: `0 8px 24px -6px ${accent}88`,
+              background: `linear-gradient(145deg, ${tint}, ${tint}44)`,
+              boxShadow: `0 8px 24px -6px ${tint}88`,
             }}
           />
           {badge ? (
@@ -225,7 +230,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 fontFamily: MONO,
                 fontSize: 15,
                 letterSpacing: "0.06em",
-                color: "rgb(255 255 255 / 0.45)",
+                color: theme.textDim,
                 padding: "6px 12px",
                 borderRadius: 999,
                 background: "rgb(255 255 255 / 0.05)",
@@ -242,7 +247,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               fontSize: 54,
               fontWeight: 600,
               letterSpacing: "-0.03em",
-              color: "#ffffff",
+              color: theme.text,
             }}
           >
             {title}
@@ -251,7 +256,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             style={{
               marginTop: 10,
               fontSize: 22,
-              color: "rgb(255 255 255 / 0.5)",
+              color: theme.textDim,
               letterSpacing: "-0.01em",
             }}
           >
@@ -284,11 +289,13 @@ export interface FeatureListProps {
  */
 export const FeatureList: React.FC<FeatureListProps> = ({
   items = "Code-first compositions\nLive preview\nFrame-accurate export",
-  accent = "#8b9bff",
+  accent,
   fontSize = 34,
 }) => {
   const frame = useCurrentFrame();
-  const lines = items.split("\n").filter((l) => l.trim().length > 0);
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
+  const lines = String(items).replace(/\\n/g, "\n").split("\n").filter((l) => l.trim().length > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: fontSize * 0.7, fontFamily: SANS }}>
@@ -311,8 +318,8 @@ export const FeatureList: React.FC<FeatureListProps> = ({
                 width: fontSize * 0.22,
                 height: fontSize * 0.22,
                 borderRadius: "50%",
-                background: accent,
-                boxShadow: `0 0 ${fontSize * 0.6}px ${accent}`,
+                background: tint,
+                boxShadow: `0 0 ${fontSize * 0.6}px ${tint}`,
                 flexShrink: 0,
               }}
             />
@@ -321,7 +328,7 @@ export const FeatureList: React.FC<FeatureListProps> = ({
                 fontSize,
                 fontWeight: 400,
                 letterSpacing: "-0.015em",
-                color: "rgb(255 255 255 / 0.82)",
+                color: theme.text,
               }}
             >
               {line}
@@ -352,11 +359,13 @@ export interface LogoLockupProps {
  */
 export const LogoLockup: React.FC<LogoLockupProps> = ({
   wordmark = "Raw Motion",
-  accent = "#8b9bff",
+  accent,
   size = 96,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const theme = useTheme();
+  const tint = themed(accent, theme.accent);
   const draw = progress(frame, 0, 34, "outExpo");
   const settle = springProgress(frame, fps, 10, "cinematic");
 
@@ -367,7 +376,7 @@ export const LogoLockup: React.FC<LogoLockupProps> = ({
       <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
         <rect
           x="6" y="12" width="52" height="40" rx="11"
-          stroke={accent}
+          stroke={tint}
           strokeWidth="3"
           strokeDasharray={perimeter}
           strokeDashoffset={perimeter * (1 - draw)}
@@ -375,7 +384,7 @@ export const LogoLockup: React.FC<LogoLockupProps> = ({
         />
         <path
           d="M26 24 L42 32 L26 40 Z"
-          fill="#ffffff"
+          fill={theme.text}
           opacity={progress(frame, 16, 18, "outExpo")}
           transform={`scale(${mix(springProgress(frame, fps, 16, "crisp"), 0.7, 1)})`}
           style={{ transformOrigin: "34px 32px" }}
@@ -387,7 +396,7 @@ export const LogoLockup: React.FC<LogoLockupProps> = ({
           fontSize: size * 0.5,
           fontWeight: 500,
           letterSpacing: "-0.03em",
-          color: "#ffffff",
+          color: theme.text,
           opacity: progress(frame, 12, 24, "outExpo"),
           transform: `translateX(${(1 - settle) * -14}px)`,
         }}

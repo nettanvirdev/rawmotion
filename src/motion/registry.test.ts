@@ -85,7 +85,10 @@ describe("prop schemas", () => {
           ).toContain(prop.default);
         }
         if (prop.kind === "color") {
-          expect(prop.default, where).toMatch(/^#[0-9a-f]{6}$/i);
+          // An empty default means "inherit the project theme", which is the
+          // right default for accents - baking a hex into every component
+          // would freeze one theme's colour into the project.
+          expect(prop.default, where).toMatch(/^(#[0-9a-f]{6})?$/i);
         }
       }
     }

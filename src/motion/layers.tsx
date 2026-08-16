@@ -25,6 +25,14 @@ import { layerMotion } from "./presets";
 import { blurFilter, progress, staggerDelay } from "./timing";
 import { useAssetUrl } from "./assets";
 import { lookupComponent } from "./registry";
+import {
+  alignFor,
+  hasLayout,
+  justifyFor,
+  resolveLayout,
+  resolveLayoutSpec,
+} from "./layout";
+import { useGrid, useTheme } from "./theme";
 
 /* ------------------------------------------------------------------ *
  * Wrapper
@@ -57,7 +65,8 @@ const LayerBody: React.FC<{ layer: Layer }> = ({ layer }) => {
   // Inside a Sequence, `useCurrentFrame` is already relative to the layer's
   // start - the animation code never has to subtract an offset.
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const grid = useGrid();
   const { transform } = layer;
 
   const delta = layerMotion(
@@ -71,20 +80,63 @@ const LayerBody: React.FC<{ layer: Layer }> = ({ layer }) => {
   const opacity = transform.opacity * delta.opacity;
   const blur = transform.blur + delta.blur;
 
+  const motion: React.CSSProperties = {
+    opacity,
+    filter: blurFilter(blur),
+    transform: [
+      `translate(${transform.x + delta.x}px, ${transform.y + delta.y}px)`,
+      `rotate(${transform.rotate + delta.rotate}deg)`,
+      `scale(${transform.scale * delta.scale})`,
+    ].join(" "),
+  };
+
+  const layout = resolveLayoutSpec(
+    (layer as Layer & { layout?: Record<string, unknown> }).layout as never,
+  );
+
+  /**
+   * Grid placement.
+   *
+   * This is the fix for the alignment defect. Previously every layer was an
+   * AbsoluteFill centred on its own content and then nudged by `x`, so two
+   * layers sharing an `x` had *different* left edges - offset by half the
+   * difference in their widths. No shared line could exist.
+   *
+   * With a layout the layer occupies a grid cell whose edges come from the
+   * grid, not from the content, so two layers in column 1 have byte-identical
+   * left edges regardless of what is inside them. `transform` still applies
+   * on top, which is what lets entrance animations translate within the cell.
+   */
+  if (hasLayout(layout)) {
+    const rect = resolveLayout(layout, width, height, grid);
+
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+          display: "flex",
+          justifyContent: justifyFor(layout.align),
+          alignItems: alignFor(layout.valign),
+          ...motion,
+        }}
+      >
+        <LayerContent layer={layer} />
+      </div>
+    );
+  }
+
   return (
     <AbsoluteFill
       style={{
-        opacity,
-        filter: blurFilter(blur),
-        transform: [
-          `translate(${transform.x + delta.x}px, ${transform.y + delta.y}px)`,
-          `rotate(${transform.rotate + delta.rotate}deg)`,
-          `scale(${transform.scale * delta.scale})`,
-        ].join(" "),
+        ...motion,
         // Centre is the natural anchor for motion design: a layer's position
         // is an offset from the middle of frame, so a composition re-targeted
         // from 16:9 to 9:16 keeps its composition instead of drifting to a
-        // corner.
+        // corner. Layers that need a hard edge use `layout` instead.
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -143,13 +195,16 @@ const TextLayer: React.FC<{ layer: Layer }> = ({ layer }) => {
   const p = layer.props as unknown as TextProps;
   const frame = useCurrentFrame();
   const { width } = useVideoConfig();
+  const theme = useTheme();
 
   const base: React.CSSProperties = {
     fontSize: p.fontSize,
     fontWeight: p.fontWeight,
     letterSpacing: `${p.letterSpacing}em`,
     lineHeight: p.lineHeight,
-    color: p.color,
+    // The default text colour comes from the theme. An explicit colour wins,
+    // which is what lets one line be the accent in an otherwise plain block.
+    color: p.color && p.color !== "#ffffff" ? p.color : theme.text,
     textAlign: p.align,
     maxWidth: width * p.maxWidth,
     margin: 0,
@@ -342,13 +397,23 @@ function withAlpha(color: string, alpha: number): string {
  * ------------------------------------------------------------------ */
 
 const BackgroundLayer: React.FC<{ layer: Layer }> = ({ layer }) => {
+  const theme = useTheme();
   const p = layer.props as { kind: BackgroundKind } & Record<string, unknown>;
-  const entry = BACKGROUND_REGISTRY[p.kind] ?? BACKGROUND_REGISTRY.cinematicGradient;
+  const entry = BACKGROUND_REGISTRY[p.kind] ?? BACKGROUND_REGISTRY.studio;
   const Component = entry.component as React.FC<Record<string, unknown>>;
   const { kind, ...rest } = p;
+
+  // A background inherits the theme's backdrop settings unless the layer
+  // overrides them, so switching theme restyles every scene at once. This is
+  // most of what makes a theme change feel like one edit rather than forty.
+  const merged =
+    kind === "studio" || kind === undefined
+      ? { ...theme.backdrop, ...stripEmpty(rest) }
+      : { hue: theme.backdrop.hue, ...stripEmpty(rest) };
+
   return (
     <AbsoluteFill>
-      <Component {...rest} />
+      <Component {...merged} />
     </AbsoluteFill>
   );
 };
@@ -375,3 +440,10 @@ const ComponentLayer: React.FC<{ layer: Layer }> = ({ layer }) => {
   const Component = entry.component as React.FC<Record<string, unknown>>;
   return <Component {...entry.defaults} {...p.props} />;
 };
+
+/** Drop empty-string props so they do not override a theme default. */
+function stripEmpty(props: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(props).filter(([, v]) => v !== "" && v !== undefined && v !== null),
+  );
+}

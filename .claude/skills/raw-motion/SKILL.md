@@ -52,20 +52,51 @@ even when the user has not asked for "premium".
 - Give the last scene 20+ frames of stillness before it ends. A film that
   cuts on the final movement feels truncated.
 
+**Alignment - use the grid, always**
+
+This is the single biggest quality lever, and the easiest thing to get wrong.
+
+**Position layers with `layout`, not with `transform.x/y`.** A layer without
+a layout is centred on its own content, so two layers given the same `x` end
+up with *different* left edges - off by half the difference in their widths.
+Nothing lands on a shared line, and the frame looks subtly broken in a way
+that is hard to name and impossible to miss.
+
+With `layout`, an element's edge comes from a 12-column x 8-row grid rather
+than from its content, so a 40-character headline and a three-word label in
+column 1 line up exactly.
+
+Prefer a preset: `splitLeft`, `splitRight`, `center`, `centerUpper`,
+`bottomLeft`, `caption`, `topBand`, `middleBand`, `bottomBand` and the rest -
+`describe_capabilities` lists them all. Drop to explicit `col`/`span`/`row`
+only when no preset fits.
+
+```json
+{ "layout": { "preset": "splitLeft" } }
+{ "layout": { "col": 7, "span": 6, "row": 2, "rowSpan": 5, "align": "center" } }
+{ "layout": { "preset": "splitLeft", "row": 1 } }
+```
+
+Anything sharing a visual edge must share a column. A chapter title in
+`splitLeft` and a callout in `bottomLeft` both start at column 1, so their
+left edges are identical - that is the whole point.
+
+Use `offsetX`/`offsetY` sparingly. A nudge is an admission the grid was
+wrong; usually the right answer is a different cell.
+
 **Composition**
 
 - One idea per scene. If a scene needs two headlines, it is two scenes.
-- Keep content within the middle 80% of frame. Layer `transform.x/y` are
-  offsets from centre, so ±760 x and ±400 y is the safe box at 1920x1080.
-- Never centre two things on the same point. Offset the title up and the
-  supporting element down, or split left/right.
 - Big type is 90-130px. Body is 26-36px. Captions 28-32px. Between 40 and 80
   is the dead zone that reads as neither.
+- Never centre two things on the same point. Split left/right, or stack into
+  different rows.
 
 **Motion**
 
-- Every scene gets a `background` layer, usually `kind: "depth"`. A flat
-  colour behind type is the single clearest sign nobody designed this.
+- Every scene gets a `background` layer, `kind: "studio"`. It inherits the
+  theme, so leave its props empty. A flat colour behind type is the single
+  clearest sign nobody designed this.
 - Give most scenes a camera move: `push` amount 0.04-0.10 is the default.
   Static frames are for the outro.
 - Use `depthIn` for hero objects, `riseFade` for text, `fade` for backgrounds
@@ -74,9 +105,25 @@ even when the user has not asked for "premium".
   change of subject, `none` before an outro. Remember a transition *overlaps*
   the scenes, so it shortens the film.
 
+**Theme - set it, do not hand-colour**
+
+Call `set_theme` (or pass `theme` to `create_project`) and let every
+component inherit. Themes carry the backdrop, the accent and the type
+colours, so "make it warmer" is one call rather than forty edits.
+
+`midnight` (default, technical SaaS), `graphite` (neutral, editorial),
+`aurora` (teal, developer tooling), `ember` (warm, premium launch),
+`ultraviolet` (magenta, high energy), `arctic` (ice blue, data), `paper`
+(light, documentation).
+
+Do **not** set `accent` on individual components unless you deliberately
+want one element off-theme. Leaving it unset is what makes a theme change
+work. Fine-tune a backdrop through `set_theme`'s `backdrop` argument - `hue`,
+`intensity`, `dots`, `grid`, `spotlight`, `aurora`, `beams`, `grain`.
+
 **Restraint**
 
-- One accent colour for the whole video. Default `#8b9bff`.
+- One accent colour for the whole video, and it comes from the theme.
 - No more than 4 layers in a scene beyond the background.
 - Never animate something that does not need to move.
 
@@ -98,10 +145,10 @@ A scene that reads well:
   "camera": { "move": "pull", "amount": 0.12 },
   "transition": { "type": "fade", "durationInFrames": 18 },
   "layers": [
-    { "type": "background", "props": { "kind": "depth", "hue": 252 } },
+    { "type": "background", "props": { "kind": "studio" } },
     {
       "type": "component",
-      "transform": { "y": -40 },
+      "layout": { "preset": "centerUpper" },
       "props": {
         "component": "ProductCard",
         "props": { "title": "Raw Motion", "caption": "AI-native motion design" }
@@ -111,16 +158,18 @@ A scene that reads well:
     {
       "type": "text",
       "start": 50,
-      "transform": { "y": 320 },
-      "props": { "text": "Preview, edit and export the same composition.", "fontSize": 30, "color": "#8e93a8" },
+      "layout": { "preset": "bottomBand" },
+      "props": { "text": "Preview, edit and export the same composition.", "fontSize": 30 },
       "enter": { "preset": "riseFade", "durationInFrames": 26, "distance": 22 }
     }
   ]
 }
 ```
 
-Note the shape: background, hero, supporting line offset downward and
-delayed. That pattern carries most scenes.
+Note the shape: background inheriting the theme, hero in an upper region,
+supporting line in a lower band and delayed. Both content layers are placed
+by the grid, so they share a centre line exactly. That pattern carries most
+scenes.
 
 ## Explaining a codebase
 
@@ -168,6 +217,9 @@ engine, and is authoritative if they ever disagree.
 
 ## Failure modes to avoid
 
+- Positioning with `transform.x/y` instead of `layout`. This is the number
+  one cause of a video that looks almost right and reads as amateur.
+- Setting `accent` on every component instead of setting the theme.
 - Composing more than three scenes without rendering anything.
 - Inventing a component name. Call `describe_capabilities` and use what exists.
 - Putting `\n` inside a JSON string as `\\n` - it will print literally.

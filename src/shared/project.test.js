@@ -185,6 +185,7 @@ describe("serialization", () => {
       scenes: project.scenes,
       name: project.name,
       id: project.id,
+      theme: project.theme,
       composition: project.composition,
       audio: project.audio,
       assets: project.assets,

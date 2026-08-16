@@ -226,7 +226,12 @@ export function defaultLayerProps(type) {
         strokeWidth: 1,
       };
     case "background":
-      return { kind: "cinematicGradient", intensity: 1, hue: 250, speed: 1 };
+      // Deliberately only the kind. Every other value - hue, intensity,
+      // speed, dots - comes from the project theme, and a default here would
+      // silently win over it: an `ember` project would render violet because
+      // a hue of 250 was baked into every background layer. Explicit props
+      // still override the theme; absent ones inherit.
+      return { kind: "studio" };
     case "component":
       return { component: "", props: {} };
     default:
@@ -251,7 +256,37 @@ export function createLayer(init) {
     transform: { ...defaultTransform(), ...(init.transform ?? {}) },
     props: { ...defaultLayerProps(type), ...(init.props ?? {}) },
     animation: init.animation ?? {},
+    ...(init.layout ? { layout: normalizeLayout(init.layout) } : {}),
   };
+}
+
+/**
+ * Grid placement for a layer.
+ *
+ * Optional, and its absence is meaningful: a layer without `layout` keeps the
+ * original centre-and-offset behaviour, so projects authored before the grid
+ * existed render identically. That is why this returns `undefined` rather
+ * than a default-filled object.
+ *
+ * @param {any} raw
+ * @returns {object|undefined}
+ */
+function normalizeLayout(raw) {
+  if (!raw || typeof raw !== "object") return undefined;
+
+  const out = {};
+  if (typeof raw.preset === "string") out.preset = raw.preset;
+  for (const key of ["col", "span", "row", "rowSpan"]) {
+    const value = clampInt(raw[key], 1, 1, 64);
+    if (value !== undefined) out[key] = value;
+  }
+  for (const key of ["offsetX", "offsetY"]) {
+    if (typeof raw[key] === "number" && Number.isFinite(raw[key])) out[key] = raw[key];
+  }
+  if (["left", "center", "right"].includes(raw.align)) out.align = raw.align;
+  if (["top", "middle", "bottom"].includes(raw.valign)) out.valign = raw.valign;
+
+  return Object.keys(out).length ? out : undefined;
 }
 
 /**
@@ -291,6 +326,7 @@ export function createProject(init = {}) {
       background: "#070708",
       ...(init.composition ?? {}),
     },
+    theme: { preset: init.theme ?? "midnight" },
     scenes: init.scenes?.length
       ? init.scenes.map((s) => createScene(s))
       : [createScene({ name: "Scene 1" })],
@@ -343,6 +379,7 @@ export function normalizeProject(raw, now = new Date().toISOString()) {
     id: str(input.id, createId("prj")),
     name: str(input.name, "Untitled"),
     composition,
+    theme: normalizeThemeRef(input.theme),
     // A project with zero scenes cannot be previewed or rendered - Remotion
     // rejects a zero-frame composition - so repair rather than propagate it.
     scenes: scenes.length ? scenes : [createScene({ name: "Scene 1" })],
@@ -360,6 +397,26 @@ export function normalizeProject(raw, now = new Date().toISOString()) {
  * @param {number} index
  * @returns {Scene}
  */
+/**
+ * A project's theme reference.
+ *
+ * Stored as `{ preset, overrides }` rather than a flattened palette so that
+ * changing the preset later re-themes everything, instead of leaving a
+ * snapshot of the old palette baked into the file.
+ *
+ * @param {any} raw
+ */
+function normalizeThemeRef(raw) {
+  if (typeof raw === "string") return { preset: raw };
+  if (!raw || typeof raw !== "object") return { preset: "midnight" };
+
+  const out = { preset: str(raw.preset, "midnight") };
+  if (raw.overrides && typeof raw.overrides === "object") {
+    out.overrides = raw.overrides;
+  }
+  return out;
+}
+
 function normalizeScene(raw, index) {
   const scene = raw && typeof raw === "object" ? raw : {};
   return {
@@ -414,6 +471,7 @@ function normalizeLayer(raw) {
       enter: normalizeAnimation(layer.animation?.enter),
       exit: normalizeAnimation(layer.animation?.exit),
     },
+    ...(normalizeLayout(layer.layout) ? { layout: normalizeLayout(layer.layout) } : {}),
   };
 }
 
@@ -652,6 +710,7 @@ export function serializeProject(project) {
     id: project.id,
     name: project.name,
     composition: project.composition,
+    theme: project.theme,
     scenes: project.scenes,
     audio: project.audio,
     assets: project.assets,

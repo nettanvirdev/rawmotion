@@ -24,6 +24,8 @@ import {
   useAssetUrl,
 } from "./assets";
 import { LayerView } from "./layers";
+import { ThemeProvider } from "./theme";
+import { resolveTheme } from "./themes.js";
 import { EASINGS, blurFilter, mix, progress } from "./timing";
 
 export interface RawMotionCompositionProps {
@@ -42,9 +44,23 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
 }) => {
   const timings = useMemo(() => sceneTimings(project), [project]);
 
+  const themeRef = (project as { theme?: { preset?: string; overrides?: object } }).theme;
+  const theme = resolveTheme(themeRef?.preset, themeRef?.overrides);
+
   return (
     <AssetProvider resolve={resolveAsset}>
-      <AbsoluteFill style={{ backgroundColor: project.composition.background }}>
+      <ThemeProvider preset={themeRef?.preset} overrides={themeRef?.overrides as never}>
+      {/* The theme's background is the floor. An explicit composition
+          background still wins, so a project can sit a themed film on a
+          different ground colour without forking the theme. */}
+      <AbsoluteFill
+        style={{
+          backgroundColor:
+            project.composition.background && project.composition.background !== "#070708"
+              ? project.composition.background
+              : theme.background,
+        }}
+      >
         {project.scenes.map((scene, i) => {
           const timing = timings[i];
           const incomingOverlap = i > 0 ? timings[i - 1].overlapWithNext : 0;
@@ -72,6 +88,7 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
 
         <AudioTracks project={project} />
       </AbsoluteFill>
+      </ThemeProvider>
     </AssetProvider>
   );
 };
