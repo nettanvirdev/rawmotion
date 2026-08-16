@@ -16,6 +16,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { GlassSurface } from "./backgrounds";
+import { MaskedLines, WordReveal } from "./text";
 import { mix, oscillate, progress, springProgress, staggerDelay } from "./timing";
 
 const SANS =
@@ -52,15 +53,11 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
   align = "center",
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
-  const rise = (delay: number) => {
-    const t = springProgress(frame, fps, delay, "cinematic");
-    return {
-      opacity: progress(frame, delay, 18, "outExpo"),
-      transform: `translateY(${(1 - t) * 26}px)`,
-    };
-  };
+  // The eyebrow leads, the title follows closely, the caption trails
+  // further behind. Even spacing between three elements reads as a list;
+  // uneven spacing reads as a sentence being spoken.
+  const eyebrowIn = progress(frame, 0, 22, "outExpo");
 
   return (
     <div
@@ -69,14 +66,15 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
         flexDirection: "column",
         alignItems: align === "center" ? "center" : "flex-start",
         textAlign: align,
-        gap: 20,
+        gap: size * 0.17,
         fontFamily: SANS,
       }}
     >
       {eyebrow ? (
         <div
           style={{
-            ...rise(0),
+            opacity: eyebrowIn,
+            transform: `translateY(${(1 - eyebrowIn) * 10}px)`,
             fontSize: size * 0.15,
             fontWeight: 500,
             letterSpacing: "0.22em",
@@ -88,39 +86,49 @@ export const HeroTitle: React.FC<HeroTitleProps> = ({
         </div>
       ) : null}
 
-      <div
+      {/* Masked line reveal rather than a fade. A fade implies the words
+          were always there; rising out of a mask gives the eye a direction
+          and a cause. It is also the only way a multi-line headline reads
+          as one deliberate movement instead of a block appearing. */}
+      <MaskedLines
+        text={text}
+        delay={4}
+        stagger={5}
+        duration={32}
+        align={align}
         style={{
-          ...rise(4),
           fontSize: size,
           fontWeight: 600,
           letterSpacing: "-0.035em",
-          lineHeight: 1.02,
+          lineHeight: 1.04,
           color: "#ffffff",
+        }}
+        lineStyle={{
           // A faint gradient down the type gives display text the same
           // top-lit falloff as the rest of the frame. Flat white reads as UI.
-          background: "linear-gradient(180deg, #ffffff 0%, #c9cbd6 100%)",
+          background: "linear-gradient(180deg, #ffffff 0%, #c4c8d6 100%)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           backgroundClip: "text",
         }}
-      >
-        {text}
-      </div>
+      />
 
       {caption ? (
-        <div
+        <WordReveal
+          text={caption}
+          delay={20}
+          stagger={1.4}
+          duration={24}
+          align={align}
+          maxWidth={size * 8.5}
           style={{
-            ...rise(14),
-            fontSize: size * 0.2,
+            fontSize: size * 0.21,
             fontWeight: 400,
             lineHeight: 1.45,
             letterSpacing: "-0.01em",
             color: "rgb(255 255 255 / 0.55)",
-            maxWidth: size * 8,
           }}
-        >
-          {caption}
-        </div>
+        />
       ) : null}
     </div>
   );

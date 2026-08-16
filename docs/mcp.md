@@ -1,0 +1,130 @@
+# Driving Raw Motion from a harness
+
+Raw Motion's primary interface is an MCP server. The desktop app is a window
+onto a project; the server is how a project gets made.
+
+## Connecting
+
+```jsonc
+// .mcp.json
+{
+  "mcpServers": {
+    "rawmotion": {
+      "command": "node",
+      "args": ["src/mcp/server.js"]
+    }
+  }
+}
+```
+
+Or directly: `npm run mcp`. It speaks stdio.
+
+| Variable | Purpose |
+| --- | --- |
+| `RAWMOTION_WORKSPACE` | Directory holding projects. Defaults to `~/Raw Motion`. |
+| `RAWMOTION_CHROME` | Path to a Chromium binary. Remotion downloads its own headless shell if unset; set this in containers and CI that cannot reach the download host. |
+
+The server writes only inside the workspace, and only inside a single
+project directory per call. Every path it is handed goes through
+`resolveInProject`, the same sandbox the desktop app uses — see
+[architecture.md](architecture.md).
+
+## The tools
+
+**Discovery**
+
+| Tool | Returns |
+| --- | --- |
+| `list_projects` | Every project in the workspace, newest first. |
+| `describe_capabilities` | The whole vocabulary: components with their prop schemas, background kinds, animation presets, transitions, composition presets. Call this before composing. |
+
+**Authoring**
+
+| Tool | Notes |
+| --- | --- |
+| `create_project` | Returns `dirName`, which every other tool takes. |
+| `inspect_project` | Full model plus computed scene timings. |
+| `set_composition` | Dimensions, fps, backdrop, name. |
+| `build_scenes` | Whole storyboard in one atomic call. The efficient path. |
+| `add_scene` / `update_scene` / `delete_scene` / `reorder_scenes` | |
+| `add_layer` / `update_layer` / `delete_layer` | Patches merge into existing props. |
+| `add_audio` | |
+| `timeline` | Compact view in frames and timecode. |
+
+**Files** — `list_files`, `read_file`, `write_file`, `list_assets`,
+`import_asset`. All sandboxed to the project.
+
+**Seeing and rendering**
+
+| Tool | Notes |
+| --- | --- |
+| `render_frame` | One frame, returned **as an image**. |
+| `render_contact_sheet` | The midpoint of every scene, as images. |
+| `render_video` | Resolves when the file is written. |
+
+## Why the render tools return images
+
+An agent that cannot see its own output is composing from arithmetic. It can
+verify that a layer's `y` is `250`, but not that `250` puts the caption
+through the middle of the product card.
+
+`render_frame` and `render_contact_sheet` return real PNGs through MCP's
+image content type, so the model looks at the frame the same way a designer
+looks at a monitor. This is the single most important design decision in the
+server, and it is why both tools default to a reduced scale — the agent is
+judging composition and timing, not pixel detail, and a cheap look is one it
+can afford to take after every change.
+
+The contact sheet samples each scene's **midpoint** rather than its first
+frame, because a scene's opening frame is usually mid-entrance and shows
+nothing about what the shot actually looks like.
+
+## The shape of a session
+
+```
+describe_capabilities        learn the vocabulary
+create_project
+write_file  storyboard.md    so the user can see the plan
+build_scenes                 the whole film, one call
+render_contact_sheet         look at it
+update_layer                 fix what is actually wrong
+render_frame                 check the moment you changed
+render_video
+```
+
+`build_scenes` exists because authoring a seven-scene film one `add_layer` at
+a time is forty round trips, and an agent that has already decided on the
+storyboard should be able to commit it at once. It is also atomic: either the
+whole film lands or none of it does.
+
+## Coordinate conventions
+
+These cause most first-attempt mistakes, so they are worth stating flatly.
+
+- **Layer `start` and `duration` are relative to their scene.** A layer with
+  `start: 200` in a 90-frame scene never appears.
+- **`render_frame` and `timeline` use absolute project frames.**
+- **`transform.x/y` are pixel offsets from the centre of frame**, not
+  top-left coordinates. At 1920×1080 the safe box is roughly ±760 by ±400.
+- **A transition overlaps its scene with the next one**, so adding one makes
+  the film shorter, not longer.
+- **Everything is integer frames.** Seconds are `frames / composition.fps`.
+
+## Errors
+
+Tools return `isError` with a message written for a model that will retry
+immediately: an unknown scene id lists the scenes that exist, and an
+unopenable project lists the projects in the workspace. Failing usefully
+matters more here than failing precisely, because the caller cannot ask a
+human what it did wrong.
+
+## The live loop
+
+Every mutation saves `project.json` immediately. If the desktop app has that
+project open, its file watcher notices, reloads and re-renders the preview.
+
+No coordination between the two processes is needed beyond the file itself.
+A user can watch the app while an agent composes, and can pick up the
+inspector mid-session and change anything — both are writing to the same
+document, and the app's own saves are fingerprinted so they do not echo back
+through the watcher.

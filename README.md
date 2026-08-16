@@ -39,6 +39,42 @@ the user changes in the UI is written back to the same file.
 it is the sum of its scenes minus their transition overlaps. A 10-second
 teaser and a 30-minute film use the same architecture.
 
+## Driving it from a harness
+
+Raw Motion's primary interface is an **MCP server**. The app is a window onto
+a project; the server is how a project gets made.
+
+```bash
+npm run mcp          # stdio MCP, 23 tools
+```
+
+```jsonc
+// .mcp.json - already present in this repo
+{ "mcpServers": { "rawmotion": { "command": "node", "args": ["src/mcp/server.js"] } } }
+```
+
+An agent calls `describe_capabilities` to learn the vocabulary, `build_scenes`
+to commit a whole storyboard atomically, **`render_frame` and
+`render_contact_sheet` to actually look at what it made**, and `render_video`
+to export.
+
+That looking step is the design decision the whole server is built around. An
+agent that cannot see its own output composes from arithmetic - it can check
+that a layer's `y` is 250, but not that 250 puts the caption through the
+middle of the product card. Both tools return real PNGs through MCP's image
+content type, cheaply enough to afford after every change.
+
+Every mutation writes `project.json` immediately. If the desktop app has the
+project open, its watcher reloads and the preview updates - so a user can
+watch a film being composed, and reach into the inspector mid-session. Both
+sides are editing the same document.
+
+Full tool reference: [docs/mcp.md](docs/mcp.md).
+
+Two skills ship in `.claude/skills/` - `raw-motion` for video from a prompt,
+`codebase-explainer` for turning real source into a motion explainer. They
+carry the craft rules, not just the API.
+
 ## Getting started
 
 ```bash
@@ -57,6 +93,7 @@ five-scene product film that is entirely procedural, with no bundled assets.
 | Script              | What it does                                                     |
 | ------------------- | ---------------------------------------------------------------- |
 | `npm run dev`       | Vite dev server + Electron, concurrently                         |
+| `npm run mcp`       | stdio MCP server, for agent harnesses                            |
 | `npm run build`     | Build the renderer into `dist/`                                  |
 | `npm test`          | Run the Vitest suite once                                        |
 | `npm run typecheck` | `tsc --noEmit`                                                   |
@@ -105,16 +142,23 @@ src/
                          the render bundle and the tests use it too.
     timing.ts            Easings, springs, stagger, deterministic random
     presets.ts           Entrance/exit presets
+    text.tsx             Masked line reveals - the house typography move
     backgrounds.tsx      Procedural cinematic backgrounds
     components.tsx       HeroTitle, ProductCard, FeatureList, LogoLockup
+    explainer.tsx        CodeBlock, Terminal, FileTree, DiagramFlow, Chapter
+    highlight.ts         Synchronous syntax tokenizer
+    specs.js             Component prop schemas - plain JS, read by MCP too
     RawMotionComposition.tsx   Renders a project. Preview AND export.
+  mcp/                   The MCP server - 23 tools over the same sandbox
   remotion/              registerRoot entry for the render bundle
   renderer/
     editor/              Canvas, Timeline, Inspector, panels, palette
     state/               projectStore (undo), editorStore, renderStore, aiStore
     components/ui/       Design-system primitives
     styles/globals.css   Design tokens - the source of truth
+.claude/skills/          raw-motion, codebase-explainer
 docs/architecture.md     Read this before making structural changes
+docs/mcp.md              The harness-facing tool reference
 ```
 
 ## Branding

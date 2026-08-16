@@ -506,8 +506,11 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
           <React.Fragment key={`${item.label}-${i}`}>
             <div
               style={{
-                width: vertical ? nodeWidth : undefined,
-                minWidth: vertical ? undefined : nodeWidth * 0.6,
+                // Both orientations use the full nodeWidth. Letting
+                // horizontal nodes shrink to their text produced a diagram
+                // that occupied a third of the frame and read as an
+                // afterthought.
+                width: nodeWidth,
                 padding: `${fontSize * 0.72}px ${fontSize}px`,
                 borderRadius: 12,
                 textAlign: "center",
@@ -532,6 +535,7 @@ export const DiagramFlow: React.FC<DiagramFlowProps> = ({
                 style={{
                   width: vertical ? 2 : gap,
                   height: vertical ? gap : 2,
+                  flexShrink: 0,
                   background: `linear-gradient(${vertical ? "to bottom" : "to right"}, ${accent}88, ${accent}33)`,
                   transform: vertical ? `scaleY(${connectorT})` : `scaleX(${connectorT})`,
                   transformOrigin: vertical ? "top center" : "left center",

@@ -107,8 +107,12 @@ by three things: the editor, the webpack render bundle, and the tests.
 | `timing.ts` | The motion vocabulary — named easings, springs, stagger, deterministic randomness |
 | `presets.ts` | Entrance/exit presets as pure functions returning a transform delta |
 | `backgrounds.tsx` | Procedural cinematic backgrounds |
+| `text.tsx` | Masked line reveals, word reveals, counters, type-on |
 | `components.tsx` | Higher-level composed components (`HeroTitle`, `ProductCard`, …) |
-| `registry.ts` | Name → component + prop schema, for `component` layers |
+| `explainer.tsx` | `CodeBlock`, `Terminal`, `FileTree`, `DiagramFlow`, `Chapter`, … |
+| `highlight.ts` | Synchronous syntax tokenizer for on-screen code |
+| `specs.js` | Component prop schemas as plain data — read by MCP too |
+| `registry.ts` | Name → component, paired with the specs |
 | `layers.tsx` | One renderer per layer type, plus the timing/transform wrapper |
 | `RawMotionComposition.tsx` | The composition: scenes, transitions, camera, audio |
 
@@ -123,6 +127,25 @@ Three rules apply throughout:
 3. **Presets are additive.** A preset returns a delta applied *on top of* the
    layer's transform, so the inspector's position controls and an entrance
    animation coexist instead of overwriting each other.
+
+### Type rises out of a mask
+
+The house rule for typography, and the thing that most separates designed
+motion from generated motion: text is revealed by a clipping wrapper it
+translates into, not by a fade.
+
+A fade implies the words were always there and the camera just noticed them.
+A masked reveal implies they arrived — there is an edge they came from, so
+the eye reads a direction and a cause. It costs one `overflow: hidden`
+wrapper per line. `MaskedLines` sizes that mask with a descender allowance
+and cancels it with a negative margin, because a mask sized by `line-height`
+alone shaves the tails off "g" and "y" — the kind of detail nobody can name
+and everyone notices.
+
+Syntax highlighting is a small hand-written tokenizer rather than Shiki,
+because Shiki loads grammars asynchronously and a promise resolving
+mid-render produces one unhighlighted frame in the middle of an otherwise
+highlighted shot. Coarser tokens beat an inconsistent frame.
 
 ### Layers are Remotion Sequences
 
@@ -264,29 +287,53 @@ and the shortcut table are derived from that array — so a command can never
 have a key the palette does not show, or a palette entry that does something
 different from its key.
 
+## The MCP server
+
+`src/mcp/server.js`. This is the product's primary interface — see
+[mcp.md](mcp.md) for the tool reference.
+
+It runs in plain Node, with no Electron, which is why `src/shared/paths.js`
+and `src/shared/project-fs.js` exist as an Electron-free core. Both the app
+and the server call the same sandbox and the same store, parameterised by
+workspace root. Two implementations of "is this path inside the project"
+would be one implementation and one hole — and the agent-facing surface is
+the one most likely to be handed `../../.ssh/config` by a model that guessed
+at a relative path.
+
+The server cannot import TSX, so the component vocabulary is described in
+`src/motion/specs.js` as plain data and implemented in `registry.ts`.
+`registry.test.ts` fails if either half drifts, so an agent can never be told
+about a component that has no implementation.
+
+Its render helpers (`src/mcp/render.js`) are separate from the app's queue
+because the requirements differ: the app's queue is asynchronous and reports
+to a UI, whereas a tool call wants a promise that resolves when the file
+exists — and wants stills far more often than video.
+
 ## What is not built yet
 
 Stated plainly so nothing here reads as more finished than it is.
 
-- **MCP server.** The `file.*`, `asset.*`, `project.*` and `render.*`
-  primitives all exist in the main process and are already sandboxed; an MCP
-  server would expose them over stdio. Not written. In the meantime an agent
-  edits `project.json` directly and the watcher picks it up — which is the
-  same loop, without the tool schema.
 - **User-authored components.** `component` layers resolve through a static
-  allow-list (`registry.ts`). Loading arbitrary components from a project's
-  `components/` directory needs a compilation step; evaluating source from a
-  project file would make opening a downloaded project equivalent to running
-  it, so the allow-list is a security boundary, not an oversight.
+  allow-list. Loading arbitrary components from a project's `components/`
+  directory needs a compilation step; evaluating source from a project file
+  would make opening a downloaded project equivalent to running it, so the
+  allow-list is a security boundary, not an oversight.
 - **Keyframes.** The model has entrance/exit presets and per-scene camera
-  moves; there is no per-property keyframe track yet. The `Layer` shape
+  moves; there is no per-property keyframe track. The `Layer` shape
   anticipates one.
 - **Speech and asset generation.** Not built. The asset system already treats
   generated files as ordinary project assets (`assets/generated/`, tagged
-  `origin: "generated"`), which is the integration point.
+  `origin: "generated"`), which is the integration point. There is no
+  `speech.generate` tool.
 - **Code editor panel.** The Files panel browses the project read-only.
-  `file:read` and `file:write` exist and are sandboxed.
-- **App sound design, waveform display, snapping.**
+  `file:read` and `file:write` exist and are sandboxed on both interfaces.
+- **Audio waveforms, snapping, app sound design.**
+- **Packaged rendering.** `getBundle` resolves the Remotion entry relative to
+  `import.meta.url`, which works from source but not from inside an `asar`
+  archive. Packaged builds need the entry and `src/motion`, `src/shared`
+  unpacked — `asarUnpack`, or a bundle built at package time. `build.files`
+  already ships the sources; the unpack step is not done.
 
 ## Extension points
 
@@ -304,6 +351,13 @@ Stated plainly so nothing here reads as more finished than it is.
   `main/ipc.js`, the literal to `preload.cjs`, and the typed wrapper to
   `renderer/lib/bridge.ts`. The contract test will fail until the preload is
   updated.
+- **A new MCP tool** — add it to `mcp/server.js`. If it mutates, route it
+  through an operation in `shared/` rather than editing the model inline, so
+  the app and the agent stay on one code path.
+
+Registering a component means editing two files: the spec in `specs.js` and
+the mapping in `registry.ts`. That is deliberate — it is what lets Node read
+the vocabulary — and `registry.test.ts` catches you if you forget one.
 
 ## Testing
 
@@ -318,3 +372,5 @@ invisible rather than spread evenly:
   duplicate.
 - `main/workspace.test.js` — adversarial path traversal.
 - `main/preload.contract.test.js` — the two copies of the channel list agree.
+- `motion/registry.test.ts` — the described vocabulary and the implemented
+  vocabulary match, in both directions.

@@ -25,3 +25,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Scratch drivers used to author the demo reel
+.drive.mjs
+.film*.mjs
+.render.mjs
+.peek.mjs
