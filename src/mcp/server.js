@@ -345,7 +345,7 @@ server.tool(
 
 server.tool(
   "delete_scene",
-  "Remove a scene. The last remaining scene cannot be deleted.",
+  "Remove a scene and everything in it. The last remaining scene cannot be deleted - a project must always have one.",
   { dirName: z.string(), sceneId: z.string() },
   tool(async ({ dirName, sceneId }) => {
     const { project } = await load(dirName);
@@ -502,7 +502,7 @@ server.tool(
 
 server.tool(
   "delete_layer",
-  "Remove a layer.",
+  "Remove a layer from whichever scene contains it. Find layer ids with inspect_project.",
   { dirName: z.string(), layerId: z.string() },
   tool(async ({ dirName, layerId }) => {
     const { project } = await load(dirName);
