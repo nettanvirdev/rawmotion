@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "rawmotion": {
+      "command": "node",
+      "args": ["src/mcp/server.js"],
+      "env": {}
+    }
+  }
+}

@@ -6,9 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
+    <!-- `file:` and `blob:` are required for media: the renderer has no
+         filesystem access, so project assets reach it as file:// URLs minted
+         by the main process (always inside the project sandbox - see
+         workspace.js). `connect-src` stays at 'self' so nothing here can
+         phone home. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; media-src 'self' blob: file:; font-src 'self' data:; connect-src 'self'"
     />
     <link rel="icon" type="image/png" href="/assets/logo.png" />
     <title>Raw Motion</title>

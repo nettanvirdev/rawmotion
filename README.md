@@ -1,53 +1,198 @@
 # Raw Motion
 
-An AI platform for generating motion graphics and product launch videos.
-Desktop app built on Electron 43 + React 19 + Vite 8 + Tailwind 4.
+An AI-native motion-design and video-production environment. Motion graphics
+live as real code, preview live in the app, and render frame-accurate to MP4 -
+editable by hand or by Claude, against the same project.
 
-> **Status: foundation.** The design system, app shell and packaging pipeline
-> are in place. There is no generation pipeline yet.
+Electron 43 + React 19 + Vite 8 + Tailwind 4 + Remotion 4.
+
+> **Status: first vertical slice, working end to end.** Create a project,
+> build a composition from scenes and layers, preview it live, edit it in the
+> timeline and inspector, and export an MP4 through a non-blocking render
+> queue. Read [docs/architecture.md](docs/architecture.md) for the design and
+> for an explicit list of what is *not* built yet.
+
+## The idea
+
+The composition is not trapped in an opaque timeline format. A project is a
+directory with a readable `project.json` and real source files:
+
+```
+Aurora Launch.rawmotion/
+  project.json        the model - the single source of truth
+  assets/             images, video, audio, fonts, generated
+  components/         custom motion components
+  renders/            export output
+  cache/              derived data, safe to delete
+```
+
+One React component renders that model. The editor mounts it in
+`@remotion/player`; the exporter mounts the same file in
+`@remotion/renderer`. There is no second implementation, so the preview
+cannot drift from the output.
+
+Because the model is a watched file, the agent loop is real: Claude edits
+`project.json`, the main process notices, and the preview updates. Anything
+the user changes in the UI is written back to the same file.
+
+**Duration is derived, never configured.** A project has no length field -
+it is the sum of its scenes minus their transition overlaps. A 10-second
+teaser and a 30-minute film use the same architecture.
+
+## Driving it from a harness
+
+Raw Motion's primary interface is an **MCP server**. The app is a window onto
+a project; the server is how a project gets made.
+
+```bash
+npm run mcp          # stdio MCP, 23 tools
+```
+
+```jsonc
+// .mcp.json - already present in this repo
+{ "mcpServers": { "rawmotion": { "command": "node", "args": ["src/mcp/server.js"] } } }
+```
+
+An agent calls `describe_capabilities` to learn the vocabulary and the theme
+list, `build_scenes` to commit a whole storyboard atomically, **`render_frame` and
+`render_contact_sheet` to actually look at what it made**, and `render_video`
+to export.
+
+That looking step is the design decision the whole server is built around. An
+agent that cannot see its own output composes from arithmetic - it can check
+that a layer's `y` is 250, but not that 250 puts the caption through the
+middle of the product card. Both tools return real PNGs through MCP's image
+content type, cheaply enough to afford after every change.
+
+Every mutation writes `project.json` immediately. If the desktop app has the
+project open, its watcher reloads and the preview updates - so a user can
+watch a film being composed, and reach into the inspector mid-session. Both
+sides are editing the same document.
+
+Full tool reference: [docs/mcp.md](docs/mcp.md).
+
+Two skills ship in `.claude/skills/` - `raw-motion` for video from a prompt,
+`codebase-explainer` for turning real source into a motion explainer. They
+carry the craft rules, not just the API.
+
+## Demo reel
+
+[`examples/`](examples/) holds two films, both composed by an agent driving
+the MCP server rather than by hand:
+
+- **`raw-motion-launch.mp4`** — a 29-second product launch.
+- **`inside-raw-motion.mp4`** — a 33-second motion explainer about this
+  codebase, where every code block on screen is pasted from the repository.
+
+Both are entirely procedural — no bundled images, no fonts to install. The
+notes in [`examples/README.md`](examples/README.md) list the four real defects
+that rendering a contact sheet and *looking at it* caught, each of which was
+fixed in the engine rather than worked around in the project.
 
 ## Getting started
 
-```bash
-npm install
-```
+**→ [docs/getting-started.md](docs/getting-started.md)** walks through
+installing the app, wiring Claude to it, and making the first video.
+
+### Download
+
+Windows x64 builds are on the
+[Releases page](https://github.com/nettanvirdev/rawmotion/releases):
+
+- `Raw Motion-<version>-portable.exe` — no install, double-click
+- `Raw Motion-Setup-<version>.exe` — installer
+
+They are unsigned, so SmartScreen will warn; *More info* → *Run anyway*.
+
+The app is a window onto a project. To have Claude **make** videos you also
+want the repo, because the MCP server runs on Node outside the packaged app.
+
+### From source
 
 ```bash
+npm install
 npm run dev
 ```
 
 Vite serves the renderer on `:5173` and Electron attaches to it with HMR.
+Projects live in `Documents/Raw Motion/`.
+
+On first run, create a project from the **Aurora launch** template - a
+five-scene product film that is entirely procedural, with no bundled assets.
 
 ## Scripts
 
-| Script            | What it does                                                      |
-| ----------------- | ----------------------------------------------------------------- |
-| `npm run dev`     | Vite dev server + Electron, concurrently                          |
-| `npm run build`   | Build the renderer into `dist/`                                   |
-| `npm test`        | Run the Vitest suite once                                         |
-| `npm run logo`    | Rasterize `public/assets/logo.svg` into the PNG logos             |
-| `npm run icons`   | Run `logo`, then regenerate `build/icon.ico` and the NSIS bitmaps |
-| `npm run pack`    | Unpacked build, for smoke-testing packaging                       |
-| `npm run release` | Windows installer + portable exe into `release/`                  |
+| Script              | What it does                                                     |
+| ------------------- | ---------------------------------------------------------------- |
+| `npm run dev`       | Vite dev server + Electron, concurrently                         |
+| `npm run mcp`       | stdio MCP server, for agent harnesses                            |
+| `npm run build`     | Build the renderer into `dist/`                                  |
+| `npm test`          | Run the Vitest suite once                                        |
+| `npm run typecheck` | `tsc --noEmit`                                                   |
+| `npm run logo`      | Rasterize `public/assets/logo.svg` into the PNG logos            |
+| `npm run icons`     | Run `logo`, then regenerate `build/icon.ico` and the NSIS bitmaps |
+| `npm run pack`      | Unpacked build, for smoke-testing packaging                      |
+| `npm run release`   | Windows installer + portable exe into `release/`                 |
 
 Release output:
 
 - `Raw Motion-Setup-<version>.exe` - installer with a custom Additional Tasks page
 - `Raw Motion-<version>-portable.exe` - no-install portable build
 
+Rendering downloads a headless Chromium on first use. Set `RAWMOTION_CHROME`
+to an existing binary in CI or restricted environments.
+
+## Keyboard
+
+| Key | Action |
+| --- | --- |
+| `Space` | Play / pause |
+| `←` `→` | Step one frame (`Shift` for one second) |
+| `J` / `K` / `L` | Previous scene / pause / next scene |
+| `Cmd/Ctrl+K` | Command palette |
+| `Cmd/Ctrl+Z` | Undo (`Shift` to redo) |
+| `Cmd/Ctrl+S` | Save |
+| `Cmd/Ctrl+D` | Duplicate selection |
+| `Cmd/Ctrl+0` / `1` | Fit to window / actual pixels |
+| `Cmd/Ctrl+B` | Toggle left panel |
+
+Shortcuts and palette commands come from one declaration in `EditorShell`,
+so they cannot disagree.
+
 ## Layout
 
 ```
 src/
-  main/                  Electron main process + preload bridge
+  shared/                Project model, IPC channels, templates.
+                         Imported by BOTH processes - one contract.
+  main/                  Electron main (ESM) + sandboxed preload (CJS)
+    workspace.js         Path sandbox - the only place paths are resolved
+    project-store.js     Atomic reads/writes, asset import
+    project-watcher.js   Pushes external edits to the renderer
+    render/queue.js      Serial, non-blocking MP4 queue
+  motion/                The composition engine. Outside renderer/ because
+                         the render bundle and the tests use it too.
+    timing.ts            Easings, springs, stagger, deterministic random
+    presets.ts           Entrance/exit presets
+    layout.ts            The 12x8 grid - how alignment is guaranteed
+    themes.js            Seven themes; components inherit them
+    text.tsx             Masked line reveals - the house typography move
+    backgrounds.tsx      Procedural cinematic backgrounds
+    components.tsx       HeroTitle, ProductCard, FeatureList, LogoLockup
+    explainer.tsx        CodeBlock, Terminal, FileTree, DiagramFlow, Chapter
+    highlight.ts         Synchronous syntax tokenizer
+    specs.js             Component prop schemas - plain JS, read by MCP too
+    RawMotionComposition.tsx   Renders a project. Preview AND export.
+  mcp/                   The MCP server - 23 tools over the same sandbox
+  remotion/              registerRoot entry for the render bundle
   renderer/
-    components/
-      layout/            Titlebar, Sidebar, Header
-      ui/                Design-system primitives
-    lib/                 cn(), theme store
+    editor/              Canvas, Timeline, Inspector, panels, palette
+    state/               projectStore (undo), editorStore, renderStore, aiStore
+    components/ui/       Design-system primitives
     styles/globals.css   Design tokens - the source of truth
-scripts/                 Packaging asset generation
-build/                   NSIS resources (icon + bitmaps are generated)
+.claude/skills/          raw-motion, codebase-explainer
+docs/architecture.md     Read this before making structural changes
+docs/mcp.md              The harness-facing tool reference
 ```
 
 ## Branding
@@ -114,12 +259,31 @@ Utility naming maps to roles rather than raw colors: `bg-canvas`,
 > text color it's paired with — that shipped once as a white-on-white button
 > and 16px sidebar chrome. `utils.test.js` guards the registered sizes.
 
+**The editor is exempt, on purpose.** Section 11 of `globals.css` defines a
+separate `.rm-editor` scope with absolute values that do not theme. A colour
+grading surface has to be dark regardless of the room: the canvas should be
+the only thing in the window emitting light, and a white panel beside a video
+preview destroys the viewer's judgement of its exposure. That scope is also
+the one place hairlines are allowed - between two dark panels a drop shadow
+is invisible, so the no-borders rule cannot carry separation there. Its ramp
+is warm-shifted by about 2% chroma; truly neutral greys read green next to a
+saturated preview.
+
 ## Security
 
-Context isolation on, `nodeIntegration` off, sandboxed renderer, a CSP on the
+Context isolation on, `nodeIntegration` off, `sandbox: true`, a CSP on the
 document, a single-instance lock, and a whitelisted `http(s)`-only external
-link opener. The renderer reaches the main process only through the narrow
-`window.electronAPI` surface in `src/main/preload.cjs`.
+link opener. The renderer reaches main only through the narrow `window.rawmotion`
+surface in `src/main/preload.cjs`, and holds no filesystem access at all.
+
+Every path from the renderer or from an agent is resolved by
+`src/main/workspace.js`, which refuses traversal, absolute paths and denied
+segments. It is the single choke point; nothing else joins a user-supplied
+string onto a path. `workspace.test.js` tests it adversarially.
+
+`component` layers resolve through a static allow-list rather than importing
+source from the project directory. That is deliberate: evaluating code from a
+project file would make opening a downloaded project equivalent to running it.
 
 ## License
 

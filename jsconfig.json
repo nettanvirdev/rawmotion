@@ -1,10 +1,11 @@
 {
-    "compilerOptions": {
-        "baseUrl": ".",
-        "paths": {
-            "@/*": [
-                "./src/renderer/*"
-            ]
-        }
+  "//": "Superseded by tsconfig.json. Kept so editors that only understand jsconfig still resolve the aliases.",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/renderer/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@motion/*": ["./src/motion/*"]
     }
+  }
 }
