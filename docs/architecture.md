@@ -163,6 +163,27 @@ Explicit props still win — a deliberately off-theme callout is possible.
 the MCP schema produce `""` for "not set" and `??` would render it as a
 colour.
 
+### Light grounds are not dark grounds inverted
+
+The `glass` and `paper` themes needed three separate fixes that only appeared
+on screen, and the shape of each is worth remembering:
+
+- **Blend mode.** Dark grounds composite mesh poles with `screen`, so
+  overlapping poles read as light adding up. Light grounds must composite
+  *normally*: `multiply` averages every overlap toward mud, and a deliberate
+  130-degree hue spread collapsed into one flat lavender tint.
+- **Pole size.** Poles are sized as a fraction of the diagonal. Larger than
+  the frame is correct on a dark ground, where they are ambient light; on a
+  light ground it means every pole overlaps every other and the colour
+  averages out. Light poles are smaller than the frame.
+- **Chroma.** Light grounds need *more* chroma, not less. On a dark field the
+  eye reads a faint tint as coloured light; on near-white the same tint reads
+  as dirt.
+
+The syntax palette is likewise not the dark one darkened - hue relationships
+that read on a dark field fall apart on white, and the dark comment grey
+becomes invisible. `codeColors()` picks per surface.
+
 Three colour bugs are worth recording, because all three were invisible in
 code and obvious on screen:
 
