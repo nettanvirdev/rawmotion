@@ -32,6 +32,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -44,13 +45,26 @@ import {
   projectDurationInFrames,
   sceneTimings,
 } from "../shared/project.js";
-import { defaultWorkspaceRoot, resolveInProject, resolveProjectDir } from "../shared/paths.js";
+import { resolveInProject, resolveWorkspaceRoot } from "../shared/paths.js";
 import * as store from "../shared/project-fs.js";
 import { TEMPLATES } from "../shared/templates.js";
 import { BACKGROUND_REGISTRY } from "./registry-data.js";
 import { renderContactSheet, renderFrame, renderVideo } from "./render.js";
 
-const ROOT = defaultWorkspaceRoot(os.homedir());
+/**
+ * The workspace this server operates on.
+ *
+ * Prefers the pointer the desktop app publishes on startup, so an agent and
+ * a running app are always looking at the same folder. Falls back to
+ * `~/Raw Motion` when the app has never run.
+ */
+const ROOT = resolveWorkspaceRoot(os.homedir(), os.homedir(), (file) => {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+});
 
 /* ------------------------------------------------------------------ *
  * Helpers

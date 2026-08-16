@@ -14,7 +14,7 @@ import { BrowserWindow, Menu, app, ipcMain, screen, shell } from "electron";
 import path from "node:path";
 import { CHANNELS } from "../shared/ipc.js";
 import { registerIpc, sendWindowState } from "./ipc.js";
-import { ensureWorkspace } from "./workspace.js";
+import { ensureWorkspace, publishWorkspacePointer } from "./workspace.js";
 
 const isDev = !app.isPackaged;
 const dirname = import.meta.dirname;
@@ -134,8 +134,11 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
-    // The workspace must exist before the renderer asks for a project list.
+    // The workspace must exist before the renderer asks for a project list,
+    // and its location must be discoverable by the MCP server before an
+    // agent tries to create a project in it.
     await ensureWorkspace();
+    publishWorkspacePointer();
     registerIpc(getWindow);
     createWindow();
   });

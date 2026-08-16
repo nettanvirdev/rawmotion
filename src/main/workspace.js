@@ -12,7 +12,12 @@
 
 import { app, shell } from "electron";
 import path from "node:path";
-import { defaultWorkspaceRoot, resolveProjectDir as resolveProjectDirIn } from "../shared/paths.js";
+import fs from "node:fs";
+import {
+  defaultWorkspaceRoot,
+  resolveProjectDir as resolveProjectDirIn,
+  workspacePointerPath,
+} from "../shared/paths.js";
 import {
   availableProjectDirName as availableProjectDirNameIn,
   ensureWorkspace as ensureWorkspaceAt,
@@ -44,6 +49,32 @@ export function workspaceRoot() {
     cachedRoot = defaultWorkspaceRoot(app.getPath("documents"));
   }
   return cachedRoot;
+}
+
+/**
+ * Publish the workspace path so the MCP server can find it.
+ *
+ * Without this the two halves of the product disagree: the app resolves its
+ * workspace through Electron's `documents` path, which honours XDG on Linux
+ * and the real Documents folder elsewhere, and a standalone Node process has
+ * no way to reproduce that. An agent would then create projects in a folder
+ * the app never lists, and the live loop would appear to be broken.
+ *
+ * Best-effort. A failure here costs discovery, not correctness - the server
+ * still has RAWMOTION_WORKSPACE and its own default.
+ */
+export function publishWorkspacePointer() {
+  try {
+    const file = workspacePointerPath(app.getPath("home"));
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      `${JSON.stringify({ workspace: workspaceRoot(), updatedAt: new Date().toISOString() }, null, 2)}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    console.error("[workspace] could not publish workspace pointer:", error.message);
+  }
 }
 
 /** @returns {Promise<string>} */
