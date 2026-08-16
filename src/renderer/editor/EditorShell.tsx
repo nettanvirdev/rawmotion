@@ -29,12 +29,14 @@ import { projectDurationInFrames, sceneTimings } from "@shared/project.js";
 import { bridge, errorMessage, type ProjectSummary } from "@/lib/bridge";
 import { useShortcuts, type Binding } from "@/lib/shortcuts";
 import { useEditorStore } from "@/state/editorStore";
+import { useComponentStore } from "@/state/componentStore";
 import { useProjectStore } from "@/state/projectStore";
 import { useRenderStore, activeJobs } from "@/state/renderStore";
 import { recordUserOperation, useAiStore } from "@/state/aiStore";
 import * as ops from "@/state/operations";
 import { Canvas } from "./Canvas";
 import { CommandPalette, type Command } from "./CommandPalette";
+import { ComponentEditor } from "./ComponentEditor";
 import { RenderDialog, type RenderChoice } from "./RenderDialog";
 import { SettingsModal } from "./SettingsModal";
 import { Inspector } from "./Inspector";
@@ -69,6 +71,18 @@ export const EditorShell: React.FC<{
   /* ---- live subscriptions ---- */
 
   useEffect(() => renderStore.attach(), []);
+
+  // Custom components: load on open, then follow main-process pushes so an
+  // edit from any source - the in-app editor, Claude, VS Code - hot-reloads
+  // the preview.
+  useEffect(() => {
+    void useComponentStore.getState().load(dirName);
+    const detach = useComponentStore.getState().attach();
+    return () => {
+      detach();
+      useComponentStore.getState().clear();
+    };
+  }, [dirName]);
 
   useEffect(() => {
     return bridge.project.onChangedOnDisk((payload) => {
@@ -213,6 +227,9 @@ export const EditorShell: React.FC<{
       { id: "add-composite", group: "Create", label: "Add composite layer (custom component)", run: () => addLayerHere("composite") },
 
       { id: "import", group: "Assets", label: "Import media", run: () => void importMedia() },
+
+      { id: "component-editor", group: "Components", label: "Edit component source…", keys: "mod+e", run: () => editor.openComponentEditor() },
+      { id: "component-browser", group: "Components", label: "Show components panel", run: () => editor.setLeftPanel("components") },
 
       { id: "render", group: "Render", label: "Export video…", keys: "mod+shift+r", run: () => setRenderOpen(true) },
       { id: "renders", group: "Render", label: "Show render queue", run: () => editor.setBottomPanel("renders") },
@@ -364,6 +381,8 @@ export const EditorShell: React.FC<{
         commands={commands}
         onClose={() => editor.setCommandPaletteOpen(false)}
       />
+
+      <ComponentEditor dirName={dirName} />
 
       <RenderDialog
         open={renderOpen}

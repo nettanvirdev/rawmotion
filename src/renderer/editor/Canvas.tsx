@@ -36,6 +36,7 @@ import { RawMotionComposition } from "@motion/RawMotionComposition";
 import { mapAssetResolver } from "@motion/assets";
 import { DEFAULT_GRID, safeArea } from "@motion/layout";
 import { useEditorStore } from "@/state/editorStore";
+import { renderableComponents, useComponentStore } from "@/state/componentStore";
 import { IconButton } from "./controls";
 import { cn } from "@/lib/utils";
 
@@ -212,12 +213,14 @@ export const Canvas: React.FC<{
   /* ---- asset resolution ---- */
 
   const resolveAsset = useMemo(() => mapAssetResolver(assetUrls), [assetUrls]);
+  const allComponents = useComponentStore((s) => s.components);
+  const components = useMemo(() => renderableComponents(allComponents), [allComponents]);
 
   // Remotion compares inputProps by identity to decide whether to remount;
   // an inline object here would rebuild the whole composition every render.
   const inputProps = useMemo(
-    () => ({ project, resolveAsset }),
-    [project, resolveAsset],
+    () => ({ project, resolveAsset, components }),
+    [project, resolveAsset, components],
   );
 
   return (

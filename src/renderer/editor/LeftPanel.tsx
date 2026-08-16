@@ -23,7 +23,9 @@ import {
 import type { Project } from "@shared/project.js";
 import { formatDuration, sceneTimings } from "@shared/project.js";
 import { COMPONENT_REGISTRY } from "@motion/registry";
+import { componentTemplate } from "@shared/component-manifest.js";
 import { bridge, errorMessage, type AssetRow, type FileRow } from "@/lib/bridge";
+import { useComponentStore } from "@/state/componentStore";
 import { useEditorStore, type LeftPanel as PanelId } from "@/state/editorStore";
 import { useProjectStore } from "@/state/projectStore";
 import { recordUserOperation } from "@/state/aiStore";
@@ -317,6 +319,30 @@ const ComponentsPanel: React.FC<{ project: Project }> = ({ project }) => {
   const transaction = useProjectStore((s) => s.transaction);
   const selectLayer = useEditorStore((s) => s.selectLayer);
   const playhead = useEditorStore((s) => s.playhead);
+  const openComponentEditor = useEditorStore((s) => s.openComponentEditor);
+  const customs = useComponentStore((s) => s.components);
+  const dirName = useProjectStore((s) => s.dirName);
+
+  // Create a starter file, then open it in the source editor. The watcher
+  // refreshes the list; opening the editor directly saves the user hunting
+  // for what just appeared.
+  const createComponent = async () => {
+    if (!dirName) return;
+    const taken = new Set(customs.map((c) => c.file));
+    let base = "MyComponent";
+    let n = 1;
+    while (taken.has(`components/${base}.tsx`)) base = `MyComponent${(n += 1)}`;
+    const file = `${base}.tsx`;
+    try {
+      await bridge.components.save(dirName, file, componentTemplate(base));
+      await useComponentStore.getState().load(dirName);
+      openComponentEditor(`components/${file}`);
+      recordUserOperation(`Created component ${base}`);
+    } catch {
+      // The editor surface shows compile errors; a failed write is left to
+      // the components:changed push to reconcile.
+    }
+  };
 
   const addComponent = (name: string) => {
     const timings = sceneTimings(project);
@@ -343,8 +369,64 @@ const ComponentsPanel: React.FC<{ project: Project }> = ({ project }) => {
 
   return (
     <>
-      <PanelHeader title="Components" />
+      <PanelHeader
+        title="Components"
+        actions={
+          <>
+            <IconButton title="Edit component source" onClick={() => openComponentEditor()}>
+              <FileCode2 className="size-3.5" />
+            </IconButton>
+            <IconButton title="New custom component" onClick={() => void createComponent()}>
+              <Plus className="size-3.5" />
+            </IconButton>
+          </>
+        }
+      />
       <div className="rm-scroll min-h-0 flex-1 overflow-y-auto p-1.5">
+        {customs.length ? (
+          <>
+            <p className="px-2 pb-1 pt-1.5 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--rm-text-faint)]">
+              Project
+            </p>
+            {customs.map((entry) => (
+              <div key={entry.file} className="group relative">
+                <button
+                  type="button"
+                  onClick={() => addComponent(entry.name)}
+                  title={
+                    entry.error
+                      ? entry.error
+                      : `${entry.manifest.description || entry.file}\nClick to add to the composition`
+                  }
+                  className="mb-1 w-full rounded-[6px] px-2 py-2 text-left transition-colors duration-100 hover:bg-[var(--rm-chrome-high)]"
+                >
+                  <p className="flex items-center gap-1.5 text-[12px] text-[var(--rm-text)]">
+                    <span className="min-w-0 truncate">{entry.manifest.label}</span>
+                    {entry.error ? (
+                      <span className="shrink-0 rounded-full bg-[var(--rm-danger)]/15 px-1.5 text-[9px] text-[var(--rm-danger)]">
+                        error
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="mt-0.5 line-clamp-2 text-[10px] leading-[1.45] text-[var(--rm-text-faint)]">
+                    {entry.manifest.description || entry.file}
+                  </p>
+                </button>
+                <span className="absolute right-1 top-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100">
+                  <IconButton
+                    title="Edit source"
+                    onClick={() => openComponentEditor(entry.file)}
+                  >
+                    <FileCode2 className="size-3.5" />
+                  </IconButton>
+                </span>
+              </div>
+            ))}
+            <p className="px-2 pb-1 pt-2 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--rm-text-faint)]">
+              Built in
+            </p>
+          </>
+        ) : null}
         {COMPONENT_REGISTRY.map((entry) => (
           <button
             key={entry.name}

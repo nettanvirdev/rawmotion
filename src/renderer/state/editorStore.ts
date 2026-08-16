@@ -48,6 +48,12 @@ export interface EditorState {
 
   commandPaletteOpen: boolean;
 
+  /** The custom-component source editor modal. `file` = which file is open. */
+  componentEditorOpen: boolean;
+  componentEditorFile: string | null;
+  openComponentEditor(file?: string | null): void;
+  closeComponentEditor(): void;
+
   select(selection: Selection): void;
   selectLayer(id: string): void;
   selectScene(id: string): void;
@@ -98,6 +104,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   timelineScale: 4,
 
   commandPaletteOpen: false,
+
+  componentEditorOpen: false,
+  componentEditorFile: null,
+  openComponentEditor: (file = null) =>
+    set({ componentEditorOpen: true, componentEditorFile: file ?? null }),
+  closeComponentEditor: () => set({ componentEditorOpen: false }),
 
   select: (selection) => set({ selection }),
   selectLayer: (id) => set({ selection: { kind: "layer", id } }),

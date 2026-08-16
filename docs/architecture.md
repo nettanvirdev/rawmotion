@@ -380,15 +380,49 @@ because the requirements differ: the app's queue is asynchronous and reports
 to a UI, whereas a tool call wants a promise that resolves when the file
 exists — and wants stills far more often than video.
 
+## Custom components
+
+A project's `components/` directory holds real TSX modules, and they are
+first-class: discovered, compiled, hot-reloaded, editable in-app, and
+rendered identically in preview and export. Raw Motion is a local personal
+creative tool, and project code executing is the *product*, not a threat -
+the same stance every code editor and every npm project takes.
+
+The pipeline:
+
+```
+components/GlassCard.tsx
+        │  esbuild (bundle; react/remotion/rawmotion external)
+        ▼
+   CJS text + manifest ──IPC──► componentStore ──inputProps──► Player
+        │                                                        preview
+        └────────────────────────────────────inputProps──► render bundle
+                                                                 export
+```
+
+- `shared/component-manifest.js` - the manifest format (`export const
+  manifest`), normalisation, prop-spec mapping, the starter template.
+- `shared/component-compiler.js` - esbuild compilation + manifest
+  extraction, shared verbatim by the app and the MCP server.
+- `motion/custom-components.tsx` - provides the externals (`react`,
+  `remotion`, and the curated `rawmotion` runtime), evaluates the compiled
+  code, caches per code string, and contains failures in an error boundary
+  that renders diagnostics in-frame.
+- `main/components.js` - filesystem policy, IPC handlers, and the watcher
+  that makes an external edit (Claude, VS Code) hot-reload the preview.
+
+A `component` layer resolves its name against the built-in registry first,
+then the project's customs - so customs can add anything but cannot shadow a
+built-in. `manifest.props` uses the same PropSpec vocabulary as
+`specs.js`, which is why a custom component gets a full inspector, defaults,
+and MCP discoverability from one declaration. The compiled code travels
+through input props as ordinary strings; the render pipeline is still "a
+JSON blob in, frames out".
+
 ## What is not built yet
 
 Stated plainly so nothing here reads as more finished than it is.
 
-- **User-authored components.** `component` layers resolve through a static
-  allow-list. Loading arbitrary components from a project's `components/`
-  directory needs a compilation step; evaluating source from a project file
-  would make opening a downloaded project equivalent to running it, so the
-  allow-list is a security boundary, not an oversight.
 - **Keyframes.** The model has entrance/exit presets and per-scene camera
   moves; there is no per-property keyframe track. The `Layer` shape
   anticipates one.
@@ -413,6 +447,9 @@ Stated plainly so nothing here reads as more finished than it is.
 - **A new motion component** — write it in `motion/components.tsx` and add a
   registry entry with its prop schema. The inspector generates its controls
   automatically; no UI work.
+- **A per-project component** — drop a TSX file with a manifest into the
+  project's `components/` directory (or use the in-app editor /
+  `write_component` over MCP). No app code changes at all.
 - **A new background** — add to `BACKGROUND_REGISTRY`; it appears in the
   background layer's Kind dropdown.
 - **A new preset** — add to the table in `motion/presets.ts`; it appears in

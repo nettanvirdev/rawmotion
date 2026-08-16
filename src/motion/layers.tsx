@@ -25,6 +25,11 @@ import { layerMotion } from "./presets";
 import { blurFilter, progress, staggerDelay } from "./timing";
 import { useAssetUrl } from "./assets";
 import { CompositeLayer } from "./composite";
+import {
+  ComponentFault,
+  CustomComponentBoundary,
+  useCustomComponent,
+} from "./custom-components";
 import { lookupComponent } from "./registry";
 import {
   alignFor,
@@ -441,17 +446,40 @@ const BackgroundLayer: React.FC<{ layer: Layer }> = ({ layer }) => {
 const ComponentLayer: React.FC<{ layer: Layer }> = ({ layer }) => {
   const p = layer.props as { component: string; props: Record<string, unknown> };
   const entry = lookupComponent(p.component);
+  // Custom components from the project's `components/` directory resolve
+  // after the built-in registry, so a project cannot shadow a built-in by
+  // accident - but can add anything the registry does not have.
+  const custom = useCustomComponent(p.component);
 
-  if (!entry) {
+  if (entry) {
+    const Component = entry.component as React.FC<Record<string, unknown>>;
+    return <Component {...entry.defaults} {...p.props} />;
+  }
+
+  if (custom) {
+    if (!custom.component) {
+      return (
+        <ComponentFault
+          name={custom.name}
+          message={custom.error ?? "The component failed to compile."}
+        />
+      );
+    }
+    const Component = custom.component;
+    // The boundary keeps one broken component from taking down the whole
+    // preview - a user editing source passes through broken states often.
     return (
-      <MissingAsset
-        label={p.component ? `Unknown component: ${p.component}` : "No component selected"}
-      />
+      <CustomComponentBoundary name={custom.name}>
+        <Component {...custom.defaults} {...p.props} />
+      </CustomComponentBoundary>
     );
   }
 
-  const Component = entry.component as React.FC<Record<string, unknown>>;
-  return <Component {...entry.defaults} {...p.props} />;
+  return (
+    <MissingAsset
+      label={p.component ? `Unknown component: ${p.component}` : "No component selected"}
+    />
+  );
 };
 
 /** Drop empty-string props so they do not override a theme default. */

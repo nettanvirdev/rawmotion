@@ -327,6 +327,62 @@ and `morphId` all work - so the editor can select and edit them. Reach for
 one whenever no registered component fits: pricing cards, charts, UI
 mockups, badges, illustrations.
 
+## Custom components (project TSX modules)
+
+Beyond composites, every project can carry real React/TSX components in its
+`components/` directory. They are first-class: compiled on save, hot-reload
+the preview, render identically in the final MP4, and their manifest gives
+the user full inspector controls over what you built.
+
+Authoring (MCP: `write_component`, or write the file directly - the app
+watches the directory):
+
+```tsx
+import React from "react";
+import { useCurrentFrame, useVideoConfig } from "remotion";
+import { EASINGS, progress, staggerDelay, useTheme } from "rawmotion";
+
+export const manifest = {
+  name: "GlassPricingCard",
+  label: "Glass pricing card",
+  description: "Editable pricing card with entrance animation.",
+  category: "Cards",
+  version: 1,
+  props: {
+    title: { type: "text", label: "Title", default: "Pro" },
+    accent: { type: "color", label: "Accent", default: "" },
+    radius: { type: "number", label: "Radius", default: 32, min: 0, max: 160 },
+    featured: { type: "toggle", label: "Featured", default: true },
+    tone: { type: "select", options: ["soft", "loud"], default: "soft" },
+  },
+};
+
+const GlassPricingCard: React.FC<{...}> = (props) => { ... };
+export default GlassPricingCard;
+```
+
+Rules and surface:
+
+- Imports allowed: `react`, `remotion`, `rawmotion`, and sibling files in
+  `components/` (nesting/composition works; esbuild bundles them).
+- `rawmotion` exports: `EASINGS`, `progress`, `springProgress`, `mix`,
+  `staggerDelay`, `oscillate`, `seededRandom`, `blurFilter`, `useTheme`,
+  `useGrid`, `themed`, `MaskedLines`, `WordReveal`, `Counter`, `TypeOn`,
+  `DrawLine`, `useAssetUrl`, `resolveFontStack`, layout helpers, and every
+  built-in component (`GlassCard`, `DiagramFlow`, ...).
+- Inline styles only; everything a deterministic function of the frame
+  (no `Date.now`, no unseeded random). Default accent `""` = theme accent.
+- Prop types: `text`/`multiline`, `number` (min/max/step), `color`,
+  `select` (options), `image` (asset picker), `toggle`.
+- Use it via a `component` layer: `props.component = "GlassPricingCard"`,
+  `props.props = {...}`. Built-in names win over custom ones.
+- `write_component` compiles in the same call - fix returned errors before
+  rendering. `list_components` shows what exists; extend rather than
+  duplicate.
+
+Prefer a custom component over a composite when the design needs logic,
+loops over data, or reuse across scenes with different props.
+
 ## Morph transitions (continuity cuts)
 
 `transition.type: "morph"` is the signature move of high-end product films:

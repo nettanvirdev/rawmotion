@@ -23,6 +23,10 @@ import {
   staticAssetResolver,
   useAssetUrl,
 } from "./assets";
+import {
+  CustomComponentsProvider,
+  type CompiledComponent,
+} from "./custom-components";
 import { LayerView } from "./layers";
 import { planMorph, type MorphPlan } from "./morph";
 import { MorphOverlay } from "./morph-overlay";
@@ -38,11 +42,18 @@ export interface RawMotionCompositionProps {
    * editor overrides it with a map of `file://` URLs.
    */
   resolveAsset?: AssetResolver;
+  /**
+   * Compiled custom components from the project's `components/` directory.
+   * Delivered out-of-band (IPC in the editor, input props in the render
+   * bundle) because `project.json` stores only references to them.
+   */
+  components?: CompiledComponent[];
 }
 
 export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
   project,
   resolveAsset = staticAssetResolver,
+  components,
 }) => {
   const timings = useMemo(() => sceneTimings(project), [project]);
 
@@ -66,6 +77,7 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
 
   return (
     <AssetProvider resolve={resolveAsset}>
+      <CustomComponentsProvider components={components}>
       <ThemeProvider preset={themeRef?.preset} overrides={themeRef?.overrides as never}>
       {/* The theme's background is the floor. An explicit composition
           background still wins, so a project can sit a themed film on a
@@ -138,6 +150,7 @@ export const RawMotionComposition: React.FC<RawMotionCompositionProps> = ({
         <AudioTracks project={project} />
       </AbsoluteFill>
       </ThemeProvider>
+      </CustomComponentsProvider>
     </AssetProvider>
   );
 };

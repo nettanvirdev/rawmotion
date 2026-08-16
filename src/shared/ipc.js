@@ -43,6 +43,12 @@ export const CHANNELS = {
   FILE_READ: "file:read",
   FILE_WRITE: "file:write",
 
+  COMPONENTS_LIST: "components:list",
+  COMPONENTS_READ: "components:read",
+  COMPONENTS_SAVE: "components:save",
+  COMPONENTS_DELETE: "components:delete",
+  COMPONENTS_RENAME: "components:rename",
+
   RENDER_ENQUEUE: "render:enqueue",
   RENDER_CANCEL: "render:cancel",
   RENDER_LIST: "render:list",
@@ -53,6 +59,7 @@ export const CHANNELS = {
 export const EVENTS = {
   WINDOW_STATE: "window:state",
   PROJECT_CHANGED_ON_DISK: "project:changed-on-disk",
+  COMPONENTS_CHANGED: "components:changed",
   RENDER_PROGRESS: "render:progress",
 };
 

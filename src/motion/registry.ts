@@ -50,7 +50,9 @@ export type PropSpec =
   | { kind: "color"; label: string; default: string }
   | { kind: "select"; label: string; default: string; options: { value: string; label: string }[] }
   /** A project-asset path; the inspector renders a picker with import. */
-  | { kind: "image"; label: string; default: string };
+  | { kind: "image"; label: string; default: string }
+  /** A boolean switch. Custom-component manifests produce these. */
+  | { kind: "toggle"; label: string; default: boolean };
 
 export interface RegistryEntry {
   name: string;

@@ -1,16 +1,58 @@
+<div align="center">
+
+<img src="public/logo.png" alt="Raw Motion" width="96" />
+
 # Raw Motion
 
-An AI-native motion-design and video-production environment. Motion graphics
-live as real code, preview live in the app, and render frame-accurate to MP4 -
-editable by hand or by Claude, against the same project.
+**The AI-native motion design studio.**
+Films live as readable data and real code — edited by you in the app, or by
+Claude over MCP, against the same project. Preview live, export
+frame-accurate MP4s.
 
-Electron 43 + React 19 + Vite 8 + Tailwind 4 + Remotion 4.
+[![License: CC0-1.0](https://img.shields.io/badge/license-CC0--1.0-8b5cf6)](LICENSE)
+[![Windows](https://img.shields.io/badge/platform-Windows%20x64-2ea043)](https://github.com/nettanvirdev/rawmotion/releases)
+[![Built with Remotion](https://img.shields.io/badge/built%20with-Remotion%204-3b82f6)](https://remotion.dev)
+[![MCP](https://img.shields.io/badge/agent%20interface-MCP-f59e0b)](docs/mcp.md)
 
-> **Status: first vertical slice, working end to end.** Create a project,
-> build a composition from scenes and layers, preview it live, edit it in the
-> timeline and inspector, and export an MP4 through a non-blocking render
-> queue. Read [docs/architecture.md](docs/architecture.md) for the design and
-> for an explicit list of what is *not* built yet.
+<img src="public/product_img_1.png" alt="The Raw Motion editor" width="900" />
+
+**[▶ Watch the demo film](public/video.mp4)** — composed end-to-end by an
+agent driving the MCP server, voiceover and all.
+
+</div>
+
+---
+
+## Highlights
+
+- 🎬 **One renderer, everywhere.** The editor preview and the MP4 export
+  mount the *same* React composition — the preview cannot lie.
+- 🤖 **Agents are a first-class user.** A stdio MCP server with 26 tools:
+  storyboard atomically, render frames to actually *look* at the work,
+  export video. The desktop app watches the same files and updates live.
+- 🧬 **Morph transitions.** Continuity cuts in the language of high-end
+  product films: shared elements glide and transform across scene
+  boundaries, text morphs per character.
+- 🧩 **Custom components.** Every project carries real React/TSX modules in
+  `components/` — compiled on save, hot-reloaded in the preview, rendered
+  identically on export, with inspector controls generated from a manifest.
+  Written by you, or by AI on request.
+- 🎨 **A real motion system.** Named easings, springs, a 12×8 layout grid,
+  seven themes with OKLCH-authored backdrops, masked-line typography,
+  procedural cinematic backgrounds.
+- ⏱ **Frame-based and deterministic.** Every time value is an integer
+  frame; every pixel is a function of the frame. A render months later is
+  bit-identical.
+
+<div align="center">
+<img src="public/product_img_2.png" alt="Raw Motion timeline and inspector" width="900" />
+</div>
+
+> **Status: working end to end.** Create a project, compose scenes and
+> layers, preview live, edit in the timeline and inspector, write custom
+> components, and export MP4s through a non-blocking render queue.
+> [docs/architecture.md](docs/architecture.md) has the design and an honest
+> list of what is *not* built yet.
 
 ## The idea
 
@@ -45,7 +87,7 @@ Raw Motion's primary interface is an **MCP server**. The app is a window onto
 a project; the server is how a project gets made.
 
 ```bash
-npm run mcp          # stdio MCP, 23 tools
+npm run mcp          # stdio MCP, 26 tools
 ```
 
 ```jsonc
@@ -183,7 +225,7 @@ src/
     highlight.ts         Synchronous syntax tokenizer
     specs.js             Component prop schemas - plain JS, read by MCP too
     RawMotionComposition.tsx   Renders a project. Preview AND export.
-  mcp/                   The MCP server - 23 tools over the same sandbox
+  mcp/                   The MCP server - 26 tools over the same sandbox
   remotion/              registerRoot entry for the render bundle
   renderer/
     editor/              Canvas, Timeline, Inspector, panels, palette
@@ -281,9 +323,10 @@ Every path from the renderer or from an agent is resolved by
 segments. It is the single choke point; nothing else joins a user-supplied
 string onto a path. `workspace.test.js` tests it adversarially.
 
-`component` layers resolve through a static allow-list rather than importing
-source from the project directory. That is deliberate: evaluating code from a
-project file would make opening a downloaded project equivalent to running it.
+`component` layers resolve against the built-in registry first, then the
+project's own `components/` directory. Project components are real code and
+they execute - that is the product, the same stance every code editor takes.
+Open projects you trust, exactly as you would an npm project.
 
 ## License
 

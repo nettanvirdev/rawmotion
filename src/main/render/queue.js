@@ -23,6 +23,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createId } from "../../shared/ids.js";
+import { discoverComponents } from "../../shared/component-compiler.js";
 import { projectDurationInFrames } from "../../shared/project.js";
 import { resolveInProject } from "../workspace.js";
 import { getSettings } from "../settings.js";
@@ -222,7 +223,11 @@ async function runJob(job) {
 
     const serveUrl = await getBundle(job.projectDir);
 
-    const inputProps = { project: job.project };
+    // Custom components are compiled fresh per job - like the project model
+    // they are snapshotted at render time, and the code strings ride the
+    // ordinary input-props channel into the bundle.
+    const components = await discoverComponents(job.projectDir);
+    const inputProps = { project: job.project, components };
     const composition = await selectComposition({
       serveUrl,
       id: "RawMotion",

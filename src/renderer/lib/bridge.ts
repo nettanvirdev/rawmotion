@@ -52,6 +52,22 @@ export interface FileRow {
   size: number;
 }
 
+/** One compiled custom component, as produced by the main process. */
+export interface CustomComponentEntry {
+  name: string;
+  file: string;
+  code: string;
+  manifest: {
+    name: string;
+    label: string;
+    description: string;
+    category: string;
+    version: number;
+    props: Record<string, import("@motion/registry").PropSpec>;
+  };
+  error: string | null;
+}
+
 export type JobStatus =
   | "queued"
   | "bundling"
@@ -157,6 +173,16 @@ interface RawBridge {
     list(dirName: string, path?: string): Promise<IpcResult<FileRow[]>>;
     read(dirName: string, path: string): Promise<IpcResult<{ path: string; content: string }>>;
     write(dirName: string, path: string, content: string): Promise<IpcResult<{ path: string; bytes: number }>>;
+  };
+  components: {
+    list(dirName: string): Promise<IpcResult<CustomComponentEntry[]>>;
+    read(dirName: string, file: string): Promise<IpcResult<{ file: string; content: string }>>;
+    save(dirName: string, file: string, content: string): Promise<IpcResult<CustomComponentEntry>>;
+    delete(dirName: string, file: string): Promise<IpcResult<boolean>>;
+    rename(dirName: string, from: string, to: string): Promise<IpcResult<CustomComponentEntry>>;
+    onChanged(
+      cb: (payload: { dirName: string; components: CustomComponentEntry[] }) => void,
+    ): () => void;
   };
   render: {
     enqueue(options: {
@@ -268,6 +294,20 @@ export const bridge = {
     read: (dirName: string, path: string) => unwrap(requireBridge().files.read(dirName, path)),
     write: (dirName: string, path: string, content: string) =>
       unwrap(requireBridge().files.write(dirName, path, content)),
+  },
+
+  components: {
+    list: (dirName: string) => unwrap(requireBridge().components.list(dirName)),
+    read: (dirName: string, file: string) => unwrap(requireBridge().components.read(dirName, file)),
+    save: (dirName: string, file: string, content: string) =>
+      unwrap(requireBridge().components.save(dirName, file, content)),
+    delete: (dirName: string, file: string) =>
+      unwrap(requireBridge().components.delete(dirName, file)),
+    rename: (dirName: string, from: string, to: string) =>
+      unwrap(requireBridge().components.rename(dirName, from, to)),
+    onChanged: (
+      cb: (payload: { dirName: string; components: CustomComponentEntry[] }) => void,
+    ) => requireBridge().components.onChanged(cb),
   },
 
   render: {

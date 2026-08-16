@@ -29,6 +29,15 @@ import {
 } from "./project-store.js";
 import { stopWatching, watchProject } from "./project-watcher.js";
 import {
+  deleteComponent,
+  listComponents,
+  readComponent,
+  renameComponent,
+  saveComponent,
+  stopWatchingComponents,
+  watchComponents,
+} from "./components.js";
+import {
   cancel as cancelRender,
   enqueue as enqueueRender,
   invalidateBundle,
@@ -182,6 +191,7 @@ export function registerIpc(getWindow) {
 
   handle(CHANNELS.PROJECT_CLOSE, () => {
     stopWatching();
+    stopWatchingComponents();
     if (openProject) invalidateBundle(openProject.dir);
     openProject = null;
     return true;
@@ -264,6 +274,26 @@ export function registerIpc(getWindow) {
     writeTextFile(String(dirName), String(rel), content),
   );
 
+  /* ---------------- custom components ---------------- */
+
+  handle(CHANNELS.COMPONENTS_LIST, (_e, dirName) => listComponents(String(dirName)));
+
+  handle(CHANNELS.COMPONENTS_READ, (_e, { dirName, file }) =>
+    readComponent(String(dirName), String(file)),
+  );
+
+  handle(CHANNELS.COMPONENTS_SAVE, (_e, { dirName, file, content }) =>
+    saveComponent(String(dirName), String(file), String(content ?? "")),
+  );
+
+  handle(CHANNELS.COMPONENTS_DELETE, (_e, { dirName, file }) =>
+    deleteComponent(String(dirName), String(file)),
+  );
+
+  handle(CHANNELS.COMPONENTS_RENAME, (_e, { dirName, from, to }) =>
+    renameComponent(String(dirName), String(from), String(to)),
+  );
+
   /* ---------------- rendering ---------------- */
 
   onQueueChange((queue) => send(EVENTS.RENDER_PROGRESS, queue));
@@ -298,6 +328,11 @@ export function registerIpc(getWindow) {
     openProject = { dirName, dir };
     watchProject(dir, (payload) => {
       send(EVENTS.PROJECT_CHANGED_ON_DISK, { dirName, ...payload });
+    });
+    // The components directory has the same live loop as project.json: an
+    // external edit recompiles and pushes the fresh list to the preview.
+    watchComponents(dir, (components) => {
+      send(EVENTS.COMPONENTS_CHANGED, { dirName, components });
     });
   }
 }

@@ -15,7 +15,7 @@
  */
 
 import React from "react";
-import { Copy, Trash2, Upload } from "lucide-react";
+import { Code2, Copy, Trash2, Upload } from "lucide-react";
 import type { Layer, Project, Scene } from "@shared/project.js";
 import {
   COMPOSITION_PRESETS,
@@ -25,8 +25,14 @@ import {
 } from "@shared/project.js";
 import { FONTS } from "@shared/fonts.js";
 import { BACKGROUND_REGISTRY } from "@motion/backgrounds";
-import { COMPONENT_REGISTRY, componentDefaults, lookupComponent } from "@motion/registry";
+import {
+  COMPONENT_REGISTRY,
+  componentDefaults,
+  lookupComponent,
+  type PropSpec,
+} from "@motion/registry";
 import { presetOptions } from "@motion/presets";
+import { useComponentStore } from "@/state/componentStore";
 import { useEditorStore } from "@/state/editorStore";
 import { useProjectStore } from "@/state/projectStore";
 import * as ops from "@/state/operations";
@@ -808,97 +814,173 @@ const LayerPropsSection: React.FC<{
   }
 
   if (layer.type === "component") {
-    const name = String(props.component ?? "");
-    const entry = lookupComponent(name);
-    const inner = (props.props ?? {}) as Record<string, unknown>;
-
-    const setInner = (key: string, value: unknown) =>
-      setProps({ props: { ...inner, [key]: value } }, `cprop:${key}`);
-
-    return (
-      <>
-        <Section title="Component">
-          <Row label="Component">
-            <SelectField
-              value={name}
-              onChange={(v) =>
-                // Reset props to the new component's defaults. Carrying the
-                // old ones over would leave stale keys the new component
-                // ignores but the JSON still records.
-                setProps({ component: v, props: componentDefaults(v) }, "component")
-              }
-              options={[
-                ...(entry ? [] : [{ value: name, label: name || "Select a component" }]),
-                ...COMPONENT_REGISTRY.map((e) => ({ value: e.name, label: e.label })),
-              ]}
-            />
-          </Row>
-          {entry ? (
-            <p className="pl-[84px] text-[10px] leading-[1.5] text-[var(--rm-text-faint)]">
-              {entry.description}
-            </p>
-          ) : null}
-        </Section>
-
-        {entry ? (
-          <Section title="Properties">
-            {Object.entries(entry.props).map(([key, spec]) => (
-              <Row key={key} label={spec.label}>
-                {spec.kind === "text" ? (
-                  <TextField
-                    value={String(inner[key] ?? spec.default)}
-                    multiline={spec.multiline}
-                    onChange={(v) => setInner(key, v)}
-                  />
-                ) : spec.kind === "number" ? (
-                  // A bounded number gets a slider beside its input - finding
-                  // a value by feel beats typing candidates one at a time.
-                  spec.min != null && spec.max != null ? (
-                    <SliderField
-                      value={Number(inner[key] ?? spec.default)}
-                      min={spec.min}
-                      max={spec.max}
-                      step={spec.step ?? 1}
-                      precision={2}
-                      onChange={(v) => setInner(key, v)}
-                    />
-                  ) : (
-                    <NumberField
-                      value={Number(inner[key] ?? spec.default)}
-                      min={spec.min}
-                      max={spec.max}
-                      step={spec.step ?? 1}
-                      precision={2}
-                      onChange={(v) => setInner(key, v)}
-                    />
-                  )
-                ) : spec.kind === "color" ? (
-                  <ColorField
-                    value={String(inner[key] ?? spec.default)}
-                    onChange={(v) => setInner(key, v)}
-                  />
-                ) : spec.kind === "image" ? (
-                  <AssetField
-                    value={String(inner[key] ?? spec.default)}
-                    kind="image"
-                    onChange={(v) => setInner(key, v)}
-                  />
-                ) : (
-                  <SelectField
-                    value={String(inner[key] ?? spec.default)}
-                    onChange={(v) => setInner(key, v)}
-                    options={spec.options}
-                  />
-                )}
-              </Row>
-            ))}
-          </Section>
-        ) : null}
-      </>
-    );
+    return <ComponentSection layer={layer} setProps={setProps} />;
   }
 
   return null;
+};
+
+/**
+ * One control for one PropSpec.
+ *
+ * This is the whole point of the schema system: built-in registry specs and
+ * custom-component manifests both reduce to PropSpec, so both get a full
+ * inspector from this single renderer - adding a prop to a manifest is all
+ * it takes to get a control.
+ */
+const SpecControl: React.FC<{
+  spec: PropSpec;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}> = ({ spec, value, onChange }) => {
+  if (spec.kind === "text") {
+    return (
+      <TextField
+        value={String(value ?? spec.default)}
+        multiline={spec.multiline}
+        onChange={onChange}
+      />
+    );
+  }
+  if (spec.kind === "number") {
+    // A bounded number gets a slider beside its input - finding a value by
+    // feel beats typing candidates one at a time.
+    return spec.min != null && spec.max != null ? (
+      <SliderField
+        value={Number(value ?? spec.default)}
+        min={spec.min}
+        max={spec.max}
+        step={spec.step ?? 1}
+        precision={2}
+        onChange={onChange}
+      />
+    ) : (
+      <NumberField
+        value={Number(value ?? spec.default)}
+        min={spec.min}
+        max={spec.max}
+        step={spec.step ?? 1}
+        precision={2}
+        onChange={onChange}
+      />
+    );
+  }
+  if (spec.kind === "color") {
+    return <ColorField value={String(value ?? spec.default)} onChange={onChange} />;
+  }
+  if (spec.kind === "image") {
+    return <AssetField value={String(value ?? spec.default)} kind="image" onChange={onChange} />;
+  }
+  if (spec.kind === "toggle") {
+    return <ToggleField value={Boolean(value ?? spec.default)} onChange={onChange} />;
+  }
+  return (
+    <SelectField
+      value={String(value ?? spec.default)}
+      onChange={onChange}
+      options={spec.options}
+    />
+  );
+};
+
+/**
+ * The `component` layer's inspector: pick from the built-in registry or the
+ * project's own `components/` directory, then edit whatever props the
+ * component's schema declares.
+ */
+const ComponentSection: React.FC<{
+  layer: Layer;
+  setProps: (patch: Record<string, unknown>, key: string) => void;
+}> = ({ layer, setProps }) => {
+  const props = layer.props as Record<string, any>;
+  const openComponentEditor = useEditorStore((s) => s.openComponentEditor);
+  const customs = useComponentStore((s) => s.components);
+
+  const name = String(props.component ?? "");
+  const entry = lookupComponent(name);
+  const custom = customs.find((c) => c.name === name) ?? null;
+  const inner = (props.props ?? {}) as Record<string, unknown>;
+
+  const setInner = (key: string, value: unknown) =>
+    setProps({ props: { ...inner, [key]: value } }, `cprop:${key}`);
+
+  const specs: Record<string, PropSpec> | null = entry
+    ? entry.props
+    : custom
+      ? (custom.manifest.props as Record<string, PropSpec>)
+      : null;
+  const description = entry ? entry.description : custom?.manifest.description ?? "";
+
+  const defaultsFor = (componentName: string): Record<string, unknown> => {
+    const builtin = lookupComponent(componentName);
+    if (builtin) return componentDefaults(componentName);
+    const c = customs.find((x) => x.name === componentName);
+    if (!c) return {};
+    return Object.fromEntries(
+      Object.entries(c.manifest.props).map(([key, spec]) => [key, (spec as PropSpec).default]),
+    );
+  };
+
+  return (
+    <>
+      <Section title="Component">
+        <Row label="Component">
+          <SelectField
+            value={name}
+            onChange={(v) =>
+              // Reset props to the new component's defaults. Carrying the
+              // old ones over would leave stale keys the new component
+              // ignores but the JSON still records.
+              setProps({ component: v, props: defaultsFor(v) }, "component")
+            }
+            options={[
+              ...(entry || custom ? [] : [{ value: name, label: name || "Select a component" }]),
+              ...COMPONENT_REGISTRY.map((e) => ({ value: e.name, label: e.label, group: "Built in" })),
+              ...customs
+                .filter((c) => !lookupComponent(c.name))
+                .map((c) => ({
+                  value: c.name,
+                  label: c.manifest.label,
+                  group: `Project - ${c.manifest.category}`,
+                })),
+            ]}
+          />
+        </Row>
+        {description ? (
+          <p className="pl-[84px] text-[10px] leading-[1.5] text-[var(--rm-text-faint)]">
+            {description}
+          </p>
+        ) : null}
+        {custom ? (
+          <Row label="Source" hint="A TSX file in the project's components folder">
+            <button
+              type="button"
+              onClick={() => openComponentEditor(custom.file)}
+              className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-[5px] bg-[var(--rm-chrome-high)] px-2 text-left text-[11px] text-[var(--rm-text)] transition-colors duration-100 hover:bg-[var(--rm-accent)]"
+            >
+              <Code2 className="size-3.5 shrink-0" />
+              <span className="truncate">{custom.file}</span>
+            </button>
+          </Row>
+        ) : null}
+        {custom?.error ? (
+          <p className="pl-[84px] text-[10px] leading-[1.5] text-[var(--rm-danger)] whitespace-pre-wrap">
+            {custom.error}
+          </p>
+        ) : null}
+      </Section>
+
+      {specs ? (
+        <Section title="Properties">
+          {Object.entries(specs).map(([key, spec]) => (
+            <Row key={key} label={spec.label}>
+              <SpecControl spec={spec} value={inner[key]} onChange={(v) => setInner(key, v)} />
+            </Row>
+          ))}
+        </Section>
+      ) : null}
+    </>
+  );
 };
 
 /**

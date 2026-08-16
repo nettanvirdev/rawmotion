@@ -185,6 +185,7 @@ server.tool(
         "MORPH TRANSITIONS: transition type 'morph' is the continuity cut - the signature of high-end product films. Layers matched across the boundary glide and transform into their new place instead of cutting: matched by `morphId` (explicit, works across types - a shape can become a card), or automatically by identical type+name. Two single-line text layers morph per-character (shared letters travel, changed letters resolve through blur). Layers whose props differ only numerically interpolate those props mid-glide. Everything else gets a container transform: one surface glides while old content defocuses into new. Use overlaps of 14-24 frames. Give consecutive scenes the same background and pair the hero element - that is what makes a film feel like one continuous composition.",
         "COMPOSITE LAYERS: layer type 'composite' renders a custom component you design as `props.nodes` - a JSON tree of {type: 'column'|'row'|'box'|'text'|'circle'|'spacer'|'svg'|'path'|'image', children?, gap?, pad?, align?, justify?, width?, height?, fill?, radius?, stroke?, strokeWidth?, glass?, glow?, text?, size?, weight?, color?, letterSpacing?, mono?, fontFamily?, svg? (raw markup), path? {d, viewBox, stroke, strokeWidth, fill}, src?, fit?, enter? {preset: 'fade'|'rise'|'pop'|'scale'|'blur'|'draw'|'none', delay?, duration?}, stagger?}. Colours accept theme tokens: 'accent', 'accentSoft', 'text', 'textDim', 'panel', 'surface', 'none' - use tokens so the design follows the theme. Children auto-stagger their entrances. Use composites when no registered component fits: pricing cards, charts, UI mockups, illustrations. `props.stagger` sets frames between root entrances.",
         "The editor fully understands composites - they are ordinary layers with timing, layout, transform, entrance/exit and morphId - so prefer them over baking custom art into images.",
+        "CUSTOM COMPONENTS: for anything beyond a composite tree, write a real React/TSX component with write_component. It lands in the project's components/ directory, compiles immediately, hot-reloads the editor preview, renders identically in the final MP4, and its `manifest.props` give it full inspector controls - so the user can keep editing what you built. It may import 'react', 'remotion', 'rawmotion' (theme, timing, text kit, built-in components) and sibling components. Use a 'component' layer with props.component set to the manifest name. list_components shows what already exists; prefer extending an existing component over duplicating it.",
       ],
     });
   }),
@@ -791,6 +792,72 @@ server.tool(
   tool(async ({ dirName, path: rel, content }) =>
     text(await store.writeTextFile(ROOT, dirName, rel, content)),
   ),
+);
+
+/* ------------------------------------------------------------------ *
+ * Custom components
+ *
+ * `write_component` is the tool that closes the authoring loop: it writes
+ * the source AND compiles it in the same call, so a syntax error comes back
+ * as a result the agent can fix immediately, rather than as a broken frame
+ * three renders later.
+ * ------------------------------------------------------------------ */
+
+server.tool(
+  "list_components",
+  "The project's custom components: every TSX module in components/, with its manifest (name, label, props schema) and any compile error. Custom components are used exactly like built-ins: a 'component' layer with props.component set to the name.",
+  { dirName: z.string() },
+  tool(async ({ dirName }) => {
+    const { dir } = await load(dirName);
+    const { discoverComponents } = await import("../shared/component-compiler.js");
+    const components = await discoverComponents(dir);
+    // Code strings are large and useless to an agent; the manifest is the API.
+    return text(
+      components.map(({ code, ...rest }) => ({ ...rest, compiledBytes: code.length })),
+    );
+  }),
+);
+
+server.tool(
+  "write_component",
+  "Create or update a custom component: a TSX module in the project's components/ directory. It must `export default` a React component and should `export const manifest = { name, label, description, category, version, props }` where each prop is { type: 'text'|'number'|'color'|'select'|'image'|'toggle', label, default, min?, max?, step?, options?, multiline? } - the editor generates inspector controls from it. The module may import from 'react', 'remotion' (useCurrentFrame, useVideoConfig, AbsoluteFill, spring, interpolate...), 'rawmotion' (EASINGS, progress, mix, staggerDelay, oscillate, seededRandom, springProgress, useTheme, useGrid, themed, MaskedLines, WordReveal, Counter, TypeOn, useAssetUrl, resolveFontStack, plus every built-in component such as GlassCard or DiagramFlow), and other files in components/. Inline styles only; everything must be a deterministic function of the frame. The source is compiled in this call - fix any returned error before using the component.",
+  {
+    dirName: z.string(),
+    file: z.string().describe("File name inside components/, e.g. 'GlassPricingCard.tsx'."),
+    source: z.string().describe("Full TSX source of the module."),
+  },
+  tool(async ({ dirName, file, source }) => {
+    const { dir } = await load(dirName);
+    const name = String(file);
+    if (!/^[A-Za-z_]\w*\.(t|j)sx$/.test(name)) {
+      throw new Error(`"${name}" is not a valid component file name - use letters/digits and end with .tsx`);
+    }
+    await store.writeTextFile(ROOT, dirName, `components/${name}`, source);
+    const { buildEntry } = await import("../shared/component-compiler.js");
+    const { code, ...entry } = await buildEntry(dir, name);
+    return text({
+      ...entry,
+      compiled: !entry.error,
+      hint: entry.error
+        ? "Fix the error and call write_component again."
+        : `Use it with add_layer: type 'component', props.component = "${entry.name}".`,
+    });
+  }),
+);
+
+server.tool(
+  "delete_component",
+  "Delete a custom component source file from the project's components/ directory.",
+  { dirName: z.string(), file: z.string().describe("File name inside components/.") },
+  tool(async ({ dirName, file }) => {
+    const { dir } = await load(dirName);
+    const name = String(file);
+    if (!/^[A-Za-z_]\w*\.(t|j)sx$/.test(name)) {
+      throw new Error(`"${name}" is not a valid component file name`);
+    }
+    await fs.rm(resolveInProject(dir, `components/${name}`));
+    return text({ deleted: `components/${name}` });
+  }),
 );
 
 server.tool(

@@ -85,6 +85,18 @@ contextBridge.exposeInMainWorld("rawmotion", {
       ipcRenderer.invoke("file:write", { dirName, path, content }),
   },
 
+  /* ---- custom components ---- */
+  components: {
+    list: (dirName) => ipcRenderer.invoke("components:list", dirName),
+    read: (dirName, file) => ipcRenderer.invoke("components:read", { dirName, file }),
+    save: (dirName, file, content) =>
+      ipcRenderer.invoke("components:save", { dirName, file, content }),
+    delete: (dirName, file) => ipcRenderer.invoke("components:delete", { dirName, file }),
+    rename: (dirName, from, to) =>
+      ipcRenderer.invoke("components:rename", { dirName, from, to }),
+    onChanged: (cb) => subscribe("components:changed", cb),
+  },
+
   /* ---- rendering ---- */
   render: {
     enqueue: (options) => ipcRenderer.invoke("render:enqueue", options),

@@ -55,6 +55,21 @@ project directory per call. Every path it is handed goes through
 **Files** — `list_files`, `read_file`, `write_file`, `list_assets`,
 `import_asset`. All sandboxed to the project.
 
+**Custom components**
+
+| Tool | Notes |
+| --- | --- |
+| `list_components` | Every TSX module in `components/`, with manifest and compile status. |
+| `write_component` | Write **and compile** in one call - errors come back immediately. |
+| `delete_component` | |
+
+A custom component is a real React module: `export default` the component,
+`export const manifest` the schema. It may import `react`, `remotion`,
+`rawmotion` (theme, timing, text kit, every built-in component) and sibling
+files. Once compiled it is used like any built-in: a `component` layer with
+`props.component` set to the manifest name, with inspector controls
+generated from `manifest.props`.
+
 **Seeing and rendering**
 
 | Tool | Notes |

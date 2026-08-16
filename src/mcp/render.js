@@ -16,6 +16,7 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { discoverComponents } from "../shared/component-compiler.js";
 import { normalizeProject, projectDurationInFrames } from "../shared/project.js";
 
 /**
@@ -86,7 +87,11 @@ function chromiumOptions() {
 async function composition(project, projectDir) {
   const { selectComposition } = await import("@remotion/renderer");
   const serveUrl = await getBundle(projectDir);
-  const inputProps = { project };
+  // The project's custom components travel as compiled code strings in the
+  // input props - the render bundle evaluates them exactly as the editor
+  // preview does, so a custom component cannot look different on export.
+  const components = projectDir ? await discoverComponents(projectDir) : [];
+  const inputProps = { project, components };
 
   const comp = await selectComposition({
     serveUrl,
