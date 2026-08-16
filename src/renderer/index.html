@@ -6,14 +6,14 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <!-- `file:` and `blob:` are required for media: the renderer has no
-         filesystem access, so project assets reach it as file:// URLs minted
-         by the main process (always inside the project sandbox - see
-         workspace.js). `connect-src` stays at 'self' so nothing here can
-         phone home. -->
+    <!-- `rawmotion-asset:` is how project media reaches the preview: the
+         main process serves it through a custom protocol that enforces the
+         project sandbox (see main.js). `file:` stays for older URLs and
+         packaged-page relative loads. `connect-src` includes the scheme
+         because Remotion's media handling fetches audio for waveforms. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; media-src 'self' blob: file:; font-src 'self' data:; connect-src 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: rawmotion-asset:; media-src 'self' blob: file: rawmotion-asset:; font-src 'self' data: rawmotion-asset:; connect-src 'self' rawmotion-asset:"
     />
     <link rel="icon" type="image/png" href="/assets/logo.png" />
     <title>Raw Motion</title>

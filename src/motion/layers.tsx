@@ -84,10 +84,16 @@ const LayerBody: React.FC<{ layer: Layer }> = ({ layer }) => {
     opacity,
     filter: blurFilter(blur),
     transform: [
-      `translate(${transform.x + delta.x}px, ${transform.y + delta.y}px)`,
+      `translate3d(${transform.x + delta.x}px, ${transform.y + delta.y}px, 0)`,
       `rotate(${transform.rotate + delta.rotate}deg)`,
       `scale(${transform.scale * delta.scale})`,
     ].join(" "),
+    // Stable GPU promotion. Without it, the moment an entrance's blur hits
+    // zero the `filter` is removed, the layer drops off its compositing
+    // layer and re-rasterises - a visible one-frame flicker, worst on text.
+    // Promoting up front keeps one rasterisation for the whole animation.
+    willChange: "transform, opacity, filter",
+    backfaceVisibility: "hidden",
   };
 
   const layout = resolveLayoutSpec(

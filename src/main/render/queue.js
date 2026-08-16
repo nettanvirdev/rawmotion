@@ -346,11 +346,13 @@ const QUALITY = {
  *    (D3D11 on Windows, Metal on macOS); `"swangle"` is SwiftShader -
  *    correct everywhere but strictly CPU-bound. This is where "rendering
  *    uses no GPU at all" came from: the headless shell defaults to software.
- *  - `hardwareAcceleration: "if-possible"`: lets the encoder use a hardware
- *    codec where Remotion supports one, falling back to x264 silently.
  *  - `concurrency`: how many browser tabs walk frames in parallel. Remotion's
  *    default is half the cores; users with many cores can raise it in
  *    settings.
+ *
+ * Encoding stays on x264 deliberately: hardware encoders cannot honour a
+ * `crf` quality target (Remotion logs a warning and falls back anyway), and
+ * compositing - not encoding - is where render time actually goes.
  */
 async function accelerationOptions() {
   const { gpu: mode, concurrency } = getSettings().render;
@@ -365,7 +367,6 @@ async function accelerationOptions() {
       // driver on Linux; harmless elsewhere.
       enableMultiProcessOnLinux: true,
     },
-    hardwareAcceleration: useGpu ? "if-possible" : "disable",
     ...(concurrency ? { concurrency } : {}),
   };
 }

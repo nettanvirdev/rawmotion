@@ -10,11 +10,58 @@
  * and giving up `sandbox: true` to change that would be a bad trade.
  */
 
-import { BrowserWindow, Menu, app, ipcMain, screen, shell } from "electron";
+import { BrowserWindow, Menu, app, ipcMain, net, protocol, screen, shell } from "electron";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { CHANNELS } from "../shared/ipc.js";
 import { registerIpc, sendWindowState } from "./ipc.js";
-import { ensureWorkspace, publishWorkspacePointer } from "./workspace.js";
+import {
+  ensureWorkspace,
+  publishWorkspacePointer,
+  resolveInProject,
+  resolveProjectDir,
+} from "./workspace.js";
+
+/**
+ * The scheme that carries project media into the renderer.
+ *
+ * `file://` URLs only load when the page itself is a file:// page - in
+ * development the app is served from the Vite dev server over http, and
+ * Chromium refuses file:// subresources on an http page regardless of CSP.
+ * That made every image and audio asset a broken placeholder in dev preview.
+ * A privileged custom scheme loads in both environments, and the handler
+ * still routes every request through the project sandbox.
+ *
+ * Must be registered before `app.whenReady`.
+ */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "rawmotion-asset",
+    privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true },
+  },
+]);
+
+/**
+ * URL shape: `rawmotion-asset://project/<dirName>/<project-relative path>`,
+ * every segment URI-encoded. The constant `project` host exists because a
+ * `standard` scheme requires one and hosts are lowercased - a project
+ * directory name could not survive there.
+ */
+function registerAssetProtocol() {
+  protocol.handle("rawmotion-asset", (request) => {
+    try {
+      const { pathname } = new URL(request.url);
+      const segments = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+      const [dirName, ...rest] = segments;
+      // resolveProjectDir + resolveInProject are the sandbox - a crafted URL
+      // cannot escape the workspace any more than an IPC call can.
+      const abs = resolveInProject(resolveProjectDir(dirName), rest.join("/"));
+      return net.fetch(pathToFileURL(abs).href);
+    } catch (error) {
+      return new Response(`Asset not found: ${error.message}`, { status: 404 });
+    }
+  });
+}
 
 const isDev = !app.isPackaged;
 const dirname = import.meta.dirname;
@@ -139,6 +186,7 @@ if (!app.requestSingleInstanceLock()) {
     // agent tries to create a project in it.
     await ensureWorkspace();
     publishWorkspacePointer();
+    registerAssetProtocol();
     registerIpc(getWindow);
     createWindow();
   });

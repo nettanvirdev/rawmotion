@@ -179,15 +179,25 @@ export function registerIpc(getWindow) {
    * can load.
    *
    * The renderer runs under a strict CSP and has no filesystem access, so it
-   * cannot construct this itself. `file://` URLs are used rather than reading
-   * bytes over IPC because a 200 MB video must not travel through the bridge.
+   * cannot construct this itself. `rawmotion-asset://` URLs (see main.js) are
+   * used rather than file:// - which Chromium refuses on the dev server's
+   * http pages - and rather than reading bytes over IPC, because a 200 MB
+   * video must not travel through the bridge.
    */
   handle(CHANNELS.PROJECT_READ_ASSET_URL, (_e, { dirName, src }) => {
     const dir = resolveProjectDir(String(dirName));
     // resolveInProject is what makes this safe - without it this handler
-    // would be an arbitrary-file-read primitive.
+    // would be an arbitrary-file-read primitive. The protocol handler
+    // re-checks on every fetch; this call rejects bad paths up front.
     const abs = resolveInProject(dir, String(src));
-    return { url: pathToFileURL(abs).href };
+    const rel = path
+      .relative(dir, abs)
+      .split(path.sep)
+      .map(encodeURIComponent)
+      .join("/");
+    return {
+      url: `rawmotion-asset://project/${encodeURIComponent(String(dirName))}/${rel}`,
+    };
   });
 
   /* ---------------- assets ---------------- */

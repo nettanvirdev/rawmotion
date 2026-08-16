@@ -113,6 +113,12 @@ const SceneView: React.FC<{
         style={{
           ...camera,
           ...enter.inner,
+          // The camera scales this wrapper a fraction of a percent per
+          // frame. Unpromoted, Chromium re-rasterises the text inside at
+          // every new scale - visible as a constant shimmer on type. As a
+          // composited layer it rasterises once and scales on the GPU.
+          willChange: "transform",
+          backfaceVisibility: "hidden",
         }}
       >
         {scene.layers.map((layer) => (

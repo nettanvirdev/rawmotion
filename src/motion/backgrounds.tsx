@@ -404,7 +404,19 @@ export interface VignetteProps {
 export const Vignette: React.FC<VignetteProps> = ({ intensity = 1 }) => (
   <AbsoluteFill
     style={{
-      background: `radial-gradient(ellipse at center, transparent 42%, rgb(0 0 0 / ${0.55 * intensity}) 100%)`,
+      // Eased stops, not a two-stop ramp. A transparent->black radial over a
+      // dark ground is the single worst banding case at 8 bits - the rings
+      // read as dirty marks on the backdrop. Stepping the alpha through an
+      // ease keeps each band's delta below the visible threshold; the grain
+      // layer above dithers away what remains.
+      background: [
+        "radial-gradient(ellipse at center,",
+        "transparent 40%,",
+        `rgb(0 0 0 / ${(0.08 * intensity).toFixed(3)}) 58%,`,
+        `rgb(0 0 0 / ${(0.22 * intensity).toFixed(3)}) 74%,`,
+        `rgb(0 0 0 / ${(0.4 * intensity).toFixed(3)}) 88%,`,
+        `rgb(0 0 0 / ${(0.55 * intensity).toFixed(3)}) 100%)`,
+      ].join(" "),
       pointerEvents: "none",
     }}
   />
@@ -584,7 +596,9 @@ export const MeshGradient: React.FC<MeshGradientProps> = ({
               height: size,
               transform: "translate(-50%, -50%)",
               borderRadius: "50%",
-              background: `radial-gradient(circle, oklch(${lightness} ${chroma} ${pole.hue} / ${alpha}) 0%, transparent 62%)`,
+              // A mid stop halves each band's alpha step - radial ramps on a
+              // dark ground band visibly without it.
+              background: `radial-gradient(circle, oklch(${lightness} ${chroma} ${pole.hue} / ${alpha}) 0%, oklch(${lightness} ${chroma} ${pole.hue} / ${alpha * 0.45}) 38%, transparent 68%)`,
               filter: `blur(${size * (soft ? 0.13 : 0.1)}px)`,
               // Dark grounds screen - overlapping poles read as light adding
               // up. Light grounds composite normally: `multiply` makes every
@@ -719,7 +733,9 @@ export const Spotlight: React.FC<SpotlightProps> = ({
   return (
     <AbsoluteFill
       style={{
-        background: `radial-gradient(ellipse ${reach * 90}% ${reach * 70}% at ${x * 100}% -10%, oklch(${light ? 0.78 : 0.64} ${light ? 0.06 : 0.11} ${hue} / ${(0.14 * intensity * breathe * screenCompensation(hue)).toFixed(3)}) 0%, transparent 70%)`,
+        // Mid stop for the same reason as MeshGradient: a single long alpha
+        // ramp on a dark ground bands into visible arcs.
+        background: `radial-gradient(ellipse ${reach * 90}% ${reach * 70}% at ${x * 100}% -10%, oklch(${light ? 0.78 : 0.64} ${light ? 0.06 : 0.11} ${hue} / ${(0.14 * intensity * breathe * screenCompensation(hue)).toFixed(3)}) 0%, oklch(${light ? 0.78 : 0.64} ${light ? 0.06 : 0.11} ${hue} / ${(0.06 * intensity * breathe * screenCompensation(hue)).toFixed(3)}) 42%, transparent 72%)`,
         mixBlendMode: light ? "multiply" : "screen",
       }}
     />
@@ -911,7 +927,9 @@ export const Studio: React.FC<StudioProps> = ({
   spotlight = 0.9,
   aurora = 0,
   beams = 0,
-  grain = 0.045,
+  // Grain is the dither that hides what banding the eased gradients leave.
+  // Below ~0.05 dark backdrops start showing rings again.
+  grain = 0.055,
   vignette = 1,
   light = false,
   soft = 0,
