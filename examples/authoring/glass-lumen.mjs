@@ -1,4 +1,4 @@
-import { call, json, saveImages, client } from "./.drive.mjs";
+import { call, json, saveImages, client } from "./client.mjs";
 const SHOTS = process.argv[2];
 
 const bg = { type: "background", name: "Backdrop", props: { kind: "studio" } };

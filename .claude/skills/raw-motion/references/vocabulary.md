@@ -212,7 +212,7 @@ Window chrome around a screenshot. Product footage in a frame reads as an applic
 
 ### StatGrid
 
-Headline figures. One per line as `value | label`.
+Headline figures. One per line as `value | label`. Spans the full width of its layout cell, so give it a wide one - `middleBand` or `center`, not a split.
 
 | prop | type | default |
 | --- | --- | --- |

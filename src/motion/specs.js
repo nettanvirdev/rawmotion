@@ -251,7 +251,8 @@ export const COMPONENT_SPECS = {
 
   StatGrid: {
     label: "Stat grid",
-    description: "Headline figures. One per line as `value | label`.",
+    description:
+      "Headline figures. One per line as `value | label`. Spans the full width of its layout cell, so give it a wide one - `middleBand` or `center`, not a split.",
     props: {
       stats: {
         kind: "text",

@@ -31,3 +31,6 @@ Thumbs.db
 .film*.mjs
 .render.mjs
 .peek.mjs
+.five.mjs
+.glass*.mjs
+.render*.mjs
