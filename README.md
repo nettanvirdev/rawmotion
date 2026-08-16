@@ -75,6 +75,20 @@ Two skills ship in `.claude/skills/` - `raw-motion` for video from a prompt,
 `codebase-explainer` for turning real source into a motion explainer. They
 carry the craft rules, not just the API.
 
+## Demo reel
+
+[`examples/`](examples/) holds two films, both composed by an agent driving
+the MCP server rather than by hand:
+
+- **`raw-motion-launch.mp4`** — a 29-second product launch.
+- **`inside-raw-motion.mp4`** — a 33-second motion explainer about this
+  codebase, where every code block on screen is pasted from the repository.
+
+Both are entirely procedural — no bundled images, no fonts to install. The
+notes in [`examples/README.md`](examples/README.md) list the four real defects
+that rendering a contact sheet and *looking at it* caught, each of which was
+fixed in the engine rather than worked around in the project.
+
 ## Getting started
 
 ```bash
