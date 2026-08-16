@@ -1,0 +1,227 @@
+/**
+ * Rendering for the MCP server.
+ *
+ * Separate from `src/main/render/queue.js` because the two have genuinely
+ * different requirements. The app's queue is asynchronous and reports
+ * progress to a UI; an agent calling a tool wants a promise that resolves
+ * when the file exists, and it wants *stills* far more often than it wants
+ * video.
+ *
+ * The still path is the important one. An agent that cannot see its own
+ * output is composing blind - it can only reason about the numbers it wrote.
+ * `renderFrame` is what closes that loop, and it is deliberately fast and
+ * cheap so an agent can afford to look after every change.
+ */
+
+import path from "node:path";
+import fs from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { normalizeProject, projectDurationInFrames } from "../shared/project.js";
+
+/** Bundling costs seconds and the result is identical for every call. */
+let bundlePromise = null;
+
+/**
+ * Webpack-bundle the Remotion entry once per process.
+ *
+ * @returns {Promise<string>} Serve URL.
+ */
+export function getBundle() {
+  if (bundlePromise) return bundlePromise;
+
+  bundlePromise = (async () => {
+    const { bundle } = await import("@remotion/bundler");
+    // fileURLToPath, not `.pathname`: on Windows the latter yields "/C:/..."
+    const entryPoint = fileURLToPath(new URL("../remotion/entry.tsx", import.meta.url));
+    return bundle({ entryPoint });
+  })();
+
+  // A failed bundle must not be cached, or every later call in the session
+  // replays the same error without retrying.
+  bundlePromise.catch(() => {
+    bundlePromise = null;
+  });
+  return bundlePromise;
+}
+
+/**
+ * Chromium for Remotion. `RAWMOTION_CHROME` overrides the downloaded shell,
+ * for containers and CI that cannot reach the download host.
+ */
+function browserExecutable() {
+  return process.env.RAWMOTION_CHROME || null;
+}
+
+async function composition(project) {
+  const { selectComposition } = await import("@remotion/renderer");
+  const serveUrl = await getBundle();
+  const inputProps = { project };
+
+  const comp = await selectComposition({
+    serveUrl,
+    id: "RawMotion",
+    inputProps,
+    browserExecutable: browserExecutable(),
+  });
+  return { comp, serveUrl, inputProps };
+}
+
+/**
+ * Render one frame to a PNG.
+ *
+ * This is how an agent sees its work. Rendering at a reduced scale by
+ * default is deliberate: a 1920x1080 PNG is several megabytes and the agent
+ * is judging composition and timing, not pixel detail, so half scale carries
+ * the same information at a quarter of the cost.
+ *
+ * @param {object} options
+ * @param {object} options.project
+ * @param {number} options.frame Absolute frame on the project timeline.
+ * @param {string} options.outputPath Absolute path to write.
+ * @param {number} [options.scale] 0.1..1
+ * @returns {Promise<{ path: string, frame: number, width: number, height: number }>}
+ */
+export async function renderFrame({ project, frame, outputPath, scale = 0.5 }) {
+  const { renderStill } = await import("@remotion/renderer");
+  const normalized = normalizeProject(project);
+  const total = projectDurationInFrames(normalized);
+
+  // Clamp rather than throw: an agent asking for frame 900 of an 800-frame
+  // project wants to see the end, and failing the call teaches it nothing.
+  const target = Math.max(0, Math.min(total - 1, Math.round(frame)));
+
+  const { comp, serveUrl, inputProps } = await composition(normalized);
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+  await renderStill({
+    composition: comp,
+    serveUrl,
+    output: outputPath,
+    frame: target,
+    inputProps,
+    scale: Math.max(0.1, Math.min(1, scale)),
+    browserExecutable: browserExecutable(),
+    overwrite: true,
+  });
+
+  return {
+    path: outputPath,
+    frame: target,
+    width: Math.round(comp.width * scale),
+    height: Math.round(comp.height * scale),
+  };
+}
+
+/**
+ * Render a contact sheet: one still per scene, at the scene's midpoint.
+ *
+ * Far more useful to an agent than a single frame, because it shows the
+ * whole film's composition at once and makes an unbalanced or empty scene
+ * immediately obvious. The midpoint is chosen because a scene's first frame
+ * is usually mid-entrance and its last is mid-exit - neither represents what
+ * the shot actually looks like.
+ *
+ * @param {object} options
+ * @param {object} options.project
+ * @param {string} options.outputDir
+ * @param {number} [options.scale]
+ */
+export async function renderContactSheet({ project, outputDir, scale = 0.3 }) {
+  const { renderStill } = await import("@remotion/renderer");
+  const normalized = normalizeProject(project);
+  const { sceneTimings } = await import("../shared/project.js");
+  const timings = sceneTimings(normalized);
+
+  const { comp, serveUrl, inputProps } = await composition(normalized);
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const shots = [];
+  for (let i = 0; i < timings.length; i += 1) {
+    const timing = timings[i];
+    const frame = Math.min(
+      comp.durationInFrames - 1,
+      Math.round(timing.from + timing.duration / 2),
+    );
+    const file = path.join(outputDir, `scene-${String(i + 1).padStart(2, "0")}.png`);
+
+    // eslint-disable-next-line no-await-in-loop
+    await renderStill({
+      composition: comp,
+      serveUrl,
+      output: file,
+      frame,
+      inputProps,
+      scale: Math.max(0.1, Math.min(1, scale)),
+      browserExecutable: browserExecutable(),
+      overwrite: true,
+    });
+
+    shots.push({
+      scene: normalized.scenes[i].name,
+      index: i,
+      frame,
+      path: file,
+    });
+  }
+
+  return shots;
+}
+
+/**
+ * Render the project to a video file.
+ *
+ * Synchronous from the caller's point of view - it resolves when the file is
+ * written. An agent has no UI to report progress into, and a tool that
+ * returns "started" forces it to poll.
+ *
+ * @param {object} options
+ * @param {object} options.project
+ * @param {string} options.outputPath
+ * @param {"mp4"|"webm"} [options.format]
+ * @param {number} [options.scale] Render at a fraction of composition size.
+ * @param {number} [options.crf] Quality. Lower is better; 18 is visually lossless.
+ * @param {(progress: { renderedFrames: number, totalFrames: number }) => void} [options.onProgress]
+ */
+export async function renderVideo({
+  project,
+  outputPath,
+  format = "mp4",
+  scale = 1,
+  crf = 20,
+  onProgress,
+}) {
+  const { renderMedia } = await import("@remotion/renderer");
+  const normalized = normalizeProject(project);
+  const { comp, serveUrl, inputProps } = await composition(normalized);
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+  const started = Date.now();
+
+  await renderMedia({
+    composition: comp,
+    serveUrl,
+    codec: format === "webm" ? "vp8" : "h264",
+    crf,
+    scale,
+    outputLocation: outputPath,
+    inputProps,
+    browserExecutable: browserExecutable(),
+    onProgress: onProgress
+      ? ({ renderedFrames }) =>
+          onProgress({ renderedFrames, totalFrames: comp.durationInFrames })
+      : undefined,
+  });
+
+  const stat = await fs.stat(outputPath);
+  return {
+    path: outputPath,
+    frames: comp.durationInFrames,
+    width: Math.round(comp.width * scale),
+    height: Math.round(comp.height * scale),
+    fps: comp.fps,
+    seconds: Number((comp.durationInFrames / comp.fps).toFixed(2)),
+    bytes: stat.size,
+    elapsedSeconds: Number(((Date.now() - started) / 1000).toFixed(1)),
+  };
+}
