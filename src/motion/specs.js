@@ -227,7 +227,7 @@ export const COMPONENT_SPECS = {
 
   Callout: {
     label: "Callout",
-    description: "Labelled note on an accent slab. For the one sentence that must not be missed.",
+    description: "Labelled note on a frosted pane with an accent chip. For the one sentence that must not be missed.",
     props: {
       label: { kind: "text", label: "Label", default: "NOTE" },
       text: { kind: "text", label: "Text", default: "", multiline: true },

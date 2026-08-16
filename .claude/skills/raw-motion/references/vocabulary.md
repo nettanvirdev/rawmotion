@@ -188,7 +188,7 @@ Chain of boxes with connectors that draw in sequence. Prefix a line with > to em
 
 ### Callout
 
-Labelled note on an accent slab. For the one sentence that must not be missed.
+Labelled note on a frosted pane with an accent chip. For the one sentence that must not be missed.
 
 | prop | type | default |
 | --- | --- | --- |

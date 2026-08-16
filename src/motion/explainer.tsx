@@ -698,49 +698,59 @@ export const Callout: React.FC<CalloutProps> = ({
   const frame = useCurrentFrame();
   const theme = useTheme();
   const tint = themed(accent, theme.accent);
-  const t = progress(frame, 0, 24, EASINGS.outExpo);
+  const t = progress(frame, 0, 26, EASINGS.outExpo);
+  const chip = progress(frame, 6, 30, EASINGS.outExpo);
+
+  const light = Boolean(theme.isLight || theme.glass);
+  const pane = light
+    ? "linear-gradient(150deg, rgb(255 255 255 / 0.82) 0%, rgb(255 255 255 / 0.6) 100%)"
+    : `linear-gradient(150deg, ${theme.panel}, ${theme.surface})`;
 
   return (
     <div
       style={{
         width,
-        display: "flex",
-        gap: fontSize * 0.8,
-        padding: `${fontSize * 0.85}px ${fontSize}px`,
-        borderRadius: 12,
-        background: `linear-gradient(150deg, ${tint}1f, ${tint}0a)`,
-        boxShadow: `inset 0 0 0 1px ${tint}3d`,
+        padding: `${fontSize * 0.95}px ${fontSize * 1.15}px`,
+        borderRadius: fontSize * 0.95,
+        background: pane,
+        backdropFilter: "blur(36px) saturate(160%)",
+        WebkitBackdropFilter: "blur(36px) saturate(160%)",
+        boxShadow: [
+          // Top bevel catching the light - lighting, not a border.
+          light
+            ? "inset 0 1.5px 0 0 rgb(255 255 255 / 0.9)"
+            : "inset 0 1px 0 0 rgb(255 255 255 / 0.07)",
+          // Contact shadow, then the wide one that lifts it off the ground.
+          "0 2px 10px -2px rgb(0 0 0 / 0.08)",
+          light ? "0 30px 70px -22px rgb(0 0 0 / 0.18)" : "0 30px 70px -22px rgb(0 0 0 / 0.55)",
+        ].join(", "),
         fontFamily: DISPLAY_FONT,
         opacity: t,
-        transform: `translateY(${mix(t, 12, 0)}px)`,
+        transform: `translateY(${mix(t, 16, 0)}px) scale(${mix(t, 0.97, 1)})`,
       }}
     >
-      <div
-        style={{
-          width: 3,
-          borderRadius: 2,
-          background: tint,
-          transform: `scaleY(${progress(frame, 4, 26, EASINGS.outExpo)})`,
-          transformOrigin: "top center",
-          flexShrink: 0,
-        }}
-      />
-      <div>
-        {label ? (
-          <div
-            style={{
-              fontSize: fontSize * 0.58,
-              letterSpacing: "0.18em",
-              color: tint,
-              marginBottom: fontSize * 0.3,
-            }}
-          >
-            {label}
-          </div>
-        ) : null}
-        <div style={{ fontSize, lineHeight: 1.45, color: theme.text, letterSpacing: "-0.01em" }}>
-          {text}
+      {label ? (
+        <div
+          style={{
+            display: "inline-flex",
+            padding: `${fontSize * 0.28}px ${fontSize * 0.6}px`,
+            borderRadius: 999,
+            background: `${tint}1c`,
+            color: tint,
+            fontSize: fontSize * 0.5,
+            fontWeight: 640,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            marginBottom: fontSize * 0.55,
+            opacity: chip,
+            transform: `translateY(${mix(chip, 6, 0)}px)`,
+          }}
+        >
+          {label}
         </div>
+      ) : null}
+      <div style={{ fontSize, lineHeight: 1.45, color: theme.text, letterSpacing: "-0.01em" }}>
+        {text}
       </div>
     </div>
   );
