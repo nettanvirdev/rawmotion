@@ -11,7 +11,9 @@
  * on that component.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ *
@@ -254,49 +256,175 @@ export const TextField: React.FC<{
   );
 };
 
+/**
+ * A themed dropdown.
+ *
+ * A native `<select>` popup is drawn by the OS and cannot be themed - a
+ * black system menu in the middle of the inspector reads as a foreign
+ * object. This renders its own listbox in a portal (so panel overflow
+ * cannot clip it), flips above the trigger when there is no room below,
+ * and keeps focus on the trigger so keyboard handling stays in one place.
+ */
 export const SelectField: React.FC<{
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string; group?: string }[];
 }> = ({ value, onChange, options }) => {
-  const groups = new Map<string, typeof options>();
-  for (const option of options) {
-    const key = option.group ?? "";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(option);
-  }
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  const current = options.find((o) => o.value === value);
+
+  // Options interleaved with their group headers, in declaration order.
+  const items = useMemo(() => {
+    const out: (
+      | { kind: "header"; label: string }
+      | { kind: "option"; option: (typeof options)[number]; index: number }
+    )[] = [];
+    let lastGroup: string | undefined;
+    options.forEach((option, index) => {
+      if (option.group && option.group !== lastGroup) {
+        out.push({ kind: "header", label: option.group });
+      }
+      lastGroup = option.group;
+      out.push({ kind: "option", option, index });
+    });
+    return out;
+  }, [options]);
+
+  const openMenu = () => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setRect(r);
+    setActiveIndex(Math.max(0, options.findIndex((o) => o.value === value)));
+    setOpen(true);
+  };
+
+  const commit = (index: number) => {
+    const option = options[index];
+    setOpen(false);
+    if (option && option.value !== value) onChange(option.value);
+  };
+
+  // Keep the highlighted row in view while arrowing through a long list.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector('[data-active="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIndex]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        openMenu();
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const delta = e.key === "ArrowDown" ? 1 : -1;
+      setActiveIndex((i) => Math.min(options.length - 1, Math.max(0, i + delta)));
+    } else if (e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      setActiveIndex(e.key === "Home" ? 0 : options.length - 1);
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      commit(activeIndex);
+    } else if (e.key === "Tab") {
+      setOpen(false);
+    }
+  };
+
+  // Estimated menu height decides whether it opens downward or flips up.
+  const headerCount = items.length - options.length;
+  const estimated = Math.min(320, options.length * 26 + headerCount * 22 + 8);
+  const placeBelow = rect ? window.innerHeight - rect.bottom - 8 >= Math.min(estimated, 180) : true;
 
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(FIELD_CLASS, "cursor-pointer appearance-none pr-6")}
-      style={{
-        // A native arrow would render in the OS accent and break the panel.
-        backgroundImage:
-          "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='rgb(255 255 255 / 0.45)' stroke-width='1.4' stroke-linecap='round'/></svg>\")",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 7px center",
-      }}
-    >
-      {[...groups.entries()].map(([group, items]) =>
-        group ? (
-          <optgroup key={group} label={group}>
-            {items.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </optgroup>
-        ) : (
-          items.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))
-        ),
-      )}
-    </select>
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        onKeyDown={onKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={cn(FIELD_CLASS, "flex cursor-pointer items-center justify-between gap-1.5 text-left")}
+      >
+        <span className="truncate">{current?.label ?? value}</span>
+        <ChevronDown className="size-3 shrink-0 text-[var(--rm-text-faint)]" />
+      </button>
+
+      {open && rect
+        ? createPortal(
+            <>
+              {/* Transparent backdrop: any interaction outside closes. */}
+              <div
+                className="fixed inset-0 z-[70]"
+                onPointerDown={() => setOpen(false)}
+                onWheel={() => setOpen(false)}
+              />
+              <div
+                ref={listRef}
+                role="listbox"
+                className="rm-scroll fixed z-[71] overflow-y-auto rounded-[7px] bg-[var(--rm-chrome-low)] py-1 shadow-[0_1px_2px_rgb(0_0_0/0.4),0_12px_32px_-8px_rgb(0_0_0/0.55)]"
+                style={{
+                  left: rect.left,
+                  width: Math.max(rect.width, 150),
+                  maxHeight: 320,
+                  ...(placeBelow
+                    ? { top: rect.bottom + 4 }
+                    : { bottom: window.innerHeight - rect.top + 4 }),
+                }}
+              >
+                {items.map((item, i) =>
+                  item.kind === "header" ? (
+                    <div
+                      key={`h-${i}`}
+                      className="px-2.5 pb-0.5 pt-2 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--rm-text-faint)]"
+                    >
+                      {item.label}
+                    </div>
+                  ) : (
+                    <button
+                      key={item.option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={item.option.value === value}
+                      data-active={item.index === activeIndex || undefined}
+                      onPointerEnter={() => setActiveIndex(item.index)}
+                      // pointerdown, not click: the backdrop would swallow the
+                      // mousedown-mouseup pair before a click could assemble.
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        commit(item.index);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 px-2.5 py-[5px] text-left text-[12px] text-[var(--rm-text)]",
+                        item.index === activeIndex && "bg-[var(--rm-chrome-high)]",
+                      )}
+                    >
+                      <span className="truncate">{item.option.label}</span>
+                      {item.option.value === value ? (
+                        <Check className="size-3 shrink-0 text-[var(--rm-accent)]" />
+                      ) : null}
+                    </button>
+                  ),
+                )}
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
+    </>
   );
 };
 

@@ -33,6 +33,7 @@ import {
   resolveLayoutSpec,
 } from "./layout";
 import { useGrid, useTheme } from "./theme";
+import { resolveFontStack } from "./fonts";
 
 /* ------------------------------------------------------------------ *
  * Wrapper
@@ -186,6 +187,8 @@ interface TextProps {
   align: "left" | "center" | "right";
   maxWidth: number;
   split: "none" | "chars" | "words" | "lines";
+  /** Catalogue family name; empty means the system stack. */
+  fontFamily?: string;
 }
 
 /**
@@ -215,8 +218,7 @@ const TextLayer: React.FC<{ layer: Layer }> = ({ layer }) => {
     maxWidth: width * p.maxWidth,
     margin: 0,
     whiteSpace: "pre-wrap",
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif',
+    fontFamily: resolveFontStack(p.fontFamily),
   };
 
   if (p.split === "none") {

@@ -49,6 +49,7 @@ import {
 import { resolveInProject, resolveWorkspaceRoot } from "../shared/paths.js";
 import * as store from "../shared/project-fs.js";
 import { TEMPLATES } from "../shared/templates.js";
+import { FONTS } from "../shared/fonts.js";
 import { BACKGROUND_REGISTRY } from "./registry-data.js";
 import { THEME_NAMES, themeCatalogue } from "../motion/themes.js";
 import { LAYOUT_PRESET_NAMES } from "./layout-data.js";
@@ -171,6 +172,7 @@ server.tool(
       cameraMoves: ["none", "push", "pull", "pan"],
       compositionPresets: COMPOSITION_PRESETS,
       templates: TEMPLATES.map((t) => ({ id: t.id, label: t.label, description: t.description })),
+      fonts: FONTS,
       notes: [
         "All times are integer frames. Seconds = frames / composition.fps.",
         "Project duration is derived: sum(scene durations) - transition overlaps. There is no duration field.",
@@ -179,6 +181,7 @@ server.tool(
         "Layer transform x/y are pixel offsets from the centre of frame.",
         "ALIGNMENT: use layer.layout (a 12-column x 8-row grid) rather than transform x/y. Two layers in the same column get identical left edges regardless of their content width; transform x/y cannot do that, because each layer is centred on its own box.",
         "Set the project theme rather than colouring components individually - components inherit accent, text and panel colours, so one set_theme call restyles everything.",
+        "Text layers take a `fontFamily` prop naming a family from `fonts` (e.g. \"Playfair Display\"). Fonts load from Google Fonts at render time - nothing needs installing. Empty means the system stack.",
       ],
     });
   }),

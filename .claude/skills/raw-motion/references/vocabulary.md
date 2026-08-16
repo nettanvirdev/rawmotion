@@ -231,6 +231,23 @@ Subtitle plate. Sits on a slab so contrast holds over a moving background.
 | `fontSize` | number (10-90) | `30` |
 | `maxWidth` | number (200-3840) | `1200` |
 
+## Fonts
+
+Text layers take a `fontFamily` prop naming a Google Fonts family from the
+catalogue below (empty = system stack). Fonts load at preview/render time —
+nothing needs installing on the machine. `describe_capabilities` returns the
+same list under `fonts`.
+
+- **Sans**: Inter, Roboto, Open Sans, Poppins, Montserrat, Lato, Manrope, DM Sans, Space Grotesk, Sora, Outfit, Plus Jakarta Sans
+- **Serif**: Playfair Display, Lora, Merriweather, EB Garamond, Fraunces
+- **Display**: Bebas Neue, Oswald, Anton, Righteous, Archivo Black
+- **Mono**: JetBrains Mono, Fira Code, IBM Plex Mono, Space Mono
+- **Script**: Caveat, Pacifico, Dancing Script, Permanent Marker
+
+Pairing rule: one display or serif face for headlines plus the system stack
+for support text is almost always enough. More than two families in one film
+reads as a ransom note.
+
 ## Background kinds
 
 A `background` layer takes `props.kind`. Leave other props empty to inherit

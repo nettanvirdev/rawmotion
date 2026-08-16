@@ -23,6 +23,7 @@ import {
   findLayer,
   formatTimecode,
 } from "@shared/project.js";
+import { FONTS } from "@shared/fonts.js";
 import { BACKGROUND_REGISTRY } from "@motion/backgrounds";
 import { COMPONENT_REGISTRY, componentDefaults, lookupComponent } from "@motion/registry";
 import { presetOptions } from "@motion/presets";
@@ -545,6 +546,16 @@ const LayerPropsSection: React.FC<{
             value={String(props.text ?? "")}
             multiline
             onChange={(v) => setProps({ text: v }, "text")}
+          />
+        </Row>
+        <Row label="Font" hint="Loaded from Google Fonts - nothing to install">
+          <SelectField
+            value={String(props.fontFamily ?? "")}
+            onChange={(v) => setProps({ fontFamily: v }, "font")}
+            options={[
+              { value: "", label: "System (default)" },
+              ...FONTS.map((f) => ({ value: f.family, label: f.family, group: f.category })),
+            ]}
           />
         </Row>
         <Pair label="Size / weight">

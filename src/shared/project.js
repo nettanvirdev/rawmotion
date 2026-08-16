@@ -228,6 +228,7 @@ export function defaultLayerProps(type) {
         align: "center",
         maxWidth: 0.8,
         split: "none", // "none" | "chars" | "words" | "lines"
+        fontFamily: "", // catalogue family (shared/fonts.js); "" = system stack
       };
     case "image":
       return { src: "", fit: "contain", radius: 0 };
